@@ -8,5 +8,7 @@ blockend/node_modules
 blockend/.env
 blockend/artifacts
 blockend/cache
+agent/node_modules
+agent/.env
 *.log
 .DS_Store
