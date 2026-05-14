@@ -48,6 +48,7 @@ export async function chat(
   messages: AgentMessage[],
   systemPrompt: string
 ): Promise<AgentResponse> {
+  // Fail fast — check required env vars before making any RPC call.
   const providerAddress = process.env.ZG_PROVIDER_ADDRESS;
   if (!providerAddress) throw new Error("ZG_PROVIDER_ADDRESS env var is required");
 
