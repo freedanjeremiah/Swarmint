@@ -4,6 +4,7 @@
     "module": "commonjs",
     "esModuleInterop": true,
     "strict": true,
+    "rootDir": ".",
     "outDir": "dist"
   },
   "include": ["hardhat.config.ts", "contracts/**/*.ts", "ignition/**/*.ts", "test/**/*.ts", "scripts/**/*.ts"]
