@@ -4,5 +4,9 @@ web/.next
 web/out
 web/.env
 web/.env.local
+blockend/node_modules
+blockend/.env
+blockend/artifacts
+blockend/cache
 *.log
 .DS_Store
