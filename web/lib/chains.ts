@@ -1,7 +1,7 @@
 import { defineChain } from "viem";
 
 export const galileo = defineChain({
-  id: 16600,
+  id: 16602,
   name: "0G Chain Galileo",
   nativeCurrency: { name: "0G", symbol: "A0GI", decimals: 18 },
   rpcUrls: {

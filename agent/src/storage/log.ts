@@ -46,6 +46,47 @@ export function decrypt(cipherBuffer: Buffer): string {
 }
 
 // ---------------------------------------------------------------------------
+// Retry helper
+// ---------------------------------------------------------------------------
+
+const RETRYABLE_PATTERNS = [
+  "require(false)",
+  "CALL_EXCEPTION",
+  "NETWORK_ERROR",
+  "TIMEOUT",
+  "SERVER_ERROR",
+];
+
+async function uploadWithRetry(
+  memData: MemData,
+  rpcUrl: string,
+  signer: ethers.Wallet,
+  indexer: Indexer
+): Promise<{ root: string; txHash: string }> {
+  const MAX_ATTEMPTS = 5;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const [result, err] = await indexer.upload(memData, rpcUrl, signer);
+      if (err) throw err;
+
+      if ("rootHash" in result && "txHash" in result) {
+        return { root: result.rootHash as string, txHash: result.txHash as string };
+      }
+      const r = result as { rootHashes: string[]; txHashes: string[] };
+      return { root: r.rootHashes[0], txHash: r.txHashes[0] };
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const isRetryable = RETRYABLE_PATTERNS.some((p) => msg.includes(p));
+      if (!isRetryable || attempt === MAX_ATTEMPTS) throw e;
+      const delayMs = Math.min(15_000, 1_000 * 2 ** (attempt - 1));
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  throw new Error("Upload failed after all attempts");
+}
+
+// ---------------------------------------------------------------------------
 // Upload
 // ---------------------------------------------------------------------------
 
@@ -57,6 +98,12 @@ export function decrypt(cipherBuffer: Buffer): string {
  *  1. `encrypt()` is called before any SDK call — plaintext never leaves
  *     this function unencrypted.
  *  2. Encryption key is read from `ZG_ENCRYPTION_KEY` (32-byte hex).
+ *
+ * Retry policy:
+ *  - Max attempts: 5
+ *  - Exponential backoff: 1s, 2s, 4s, 8s, 15s
+ *  - Retryable errors: "require(false)", "CALL_EXCEPTION", "NETWORK_ERROR",
+ *    "TIMEOUT", "SERVER_ERROR"
  */
 export async function uploadEncrypted(
   plaintext: string
@@ -76,24 +123,10 @@ export async function uploadEncrypted(
   const provider = new ethers.JsonRpcProvider(rpcUrl);
   const signer = new ethers.Wallet(privateKey, provider);
 
-  // 4. Upload via Indexer.
+  // 4. Upload via Indexer with retry logic.
   const indexerUrl =
     process.env.ZG_INDEXER_URL ?? "https://indexer-storage-testnet.0g.ai";
   const indexer = new Indexer(indexerUrl);
 
-  const [result, err] = await indexer.upload(memData, rpcUrl, signer);
-
-  if (err) throw err;
-
-  // The single-root response shape is { txHash, rootHash, txSeq }.
-  // The multi-root shape is { txHashes, rootHashes, txSeqs }.
-  if ("rootHash" in result && "txHash" in result) {
-    return { root: result.rootHash, txHash: result.txHash };
-  }
-
-  // Multi-root fallback — use the first entry.
-  return {
-    root: result.rootHashes[0],
-    txHash: result.txHashes[0],
-  };
+  return uploadWithRetry(memData, rpcUrl, signer, indexer);
 }

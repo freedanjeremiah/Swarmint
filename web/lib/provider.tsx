@@ -18,6 +18,18 @@ const wagmiConfig = createConfig({
   },
 });
 
+const zgGalileo = {
+  blockExplorerUrls: ["https://chainscan-galileo.0g.ai"],
+  chainId: 16602,
+  chainName: "0G Galileo Testnet",
+  iconUrls: [] as string[],
+  name: "0G Galileo",
+  nativeCurrency: { decimals: 18, name: "0G", symbol: "A0GI" },
+  networkId: 16602,
+  rpcUrls: [process.env.NEXT_PUBLIC_ZG_RPC_URL ?? "https://evmrpc-testnet.0g.ai"],
+  vanityName: "0G Galileo",
+};
+
 export function Providers({ children }: { children: ReactNode }) {
   const environmentId =
     process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID ||
@@ -30,6 +42,7 @@ export function Providers({ children }: { children: ReactNode }) {
         environmentId,
         walletConnectors: [EthereumWalletConnectors],
         initialAuthenticationMode: "connect-and-sign",
+        overrides: { evmNetworks: [zgGalileo] },
       }}
     >
       <WagmiProvider config={wagmiConfig}>

@@ -1,1 +1,1 @@
-export const EXPECTED_CHAIN_ID = 16600;
+export const EXPECTED_CHAIN_ID = 16602;
