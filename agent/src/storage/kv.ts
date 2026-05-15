@@ -11,8 +11,9 @@ export function swarmStreamId(swarmId: string): string {
 const KV_KEY = "memory";
 
 export async function readMemory(streamId: string): Promise<string | null> {
-  const base = process.env.ZG_KV_URL!.replace(/\/$/, "");
   try {
+    const base = (process.env.ZG_KV_URL ?? "").replace(/\/$/, "");
+    if (!base) return null;
     const res = await fetch(
       `${base}/v1/value?stream_id=${streamId}&key=${encodeURIComponent(KV_KEY)}`
     );
