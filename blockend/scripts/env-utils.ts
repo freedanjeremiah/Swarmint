@@ -1,11 +1,12 @@
 import * as fs from "fs";
 
 export function setEnvKey(content: string, key: string, value: string): string {
-  const regex = new RegExp(`^${key}=.*$`, "m");
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(`^${escapedKey}=.*$`, "m");
   if (regex.test(content)) {
     return content.replace(regex, `${key}=${value}`);
   }
-  const sep = content.endsWith("\n") ? "" : "\n";
+  const sep = content.length === 0 || content.endsWith("\n") ? "" : "\n";
   return `${content}${sep}${key}=${value}\n`;
 }
 

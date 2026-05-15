@@ -12,8 +12,12 @@ describe("setEnvKey", () => {
 
   it("appends a new key when not present", () => {
     const result = setEnvKey("FOO=old\n", "BAR", "new");
-    expect(result).to.include("FOO=old");
-    expect(result).to.include("BAR=new");
+    expect(result).to.equal("FOO=old\nBAR=new\n");
+  });
+
+  it("appends correctly to an empty string", () => {
+    const result = setEnvKey("", "FOO", "val");
+    expect(result).to.equal("FOO=val\n");
   });
 
   it("replaces an empty value", () => {
