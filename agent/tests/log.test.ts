@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import crypto from "crypto";
 
 // vi.hoisted ensures mock variables are available inside vi.mock factories,
 // which are hoisted to the top of the file by Vitest's transform.
@@ -62,5 +63,25 @@ describe("storage/log", () => {
     // The raw UTF-8 bytes of the plaintext must not appear verbatim in the buffer
     const plaintextBytes = Buffer.from(plaintext, "utf8");
     expect(buf.includes(plaintextBytes)).toBe(false);
+  });
+
+  it("decrypt recovers the original plaintext (round-trip)", () => {
+    const plaintext = "hello world";
+    const key = Buffer.from(TEST_KEY, "hex");
+
+    // Manually encrypt using AES-256-GCM
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+    const ciphertext = Buffer.concat([
+      cipher.update(plaintext, "utf8"),
+      cipher.final(),
+    ]);
+    const authTag = cipher.getAuthTag();
+
+    // Build the encrypted buffer: [iv][ciphertext][authTag]
+    const cipherBuffer = Buffer.concat([iv, ciphertext, authTag]);
+
+    // Decrypt and verify it matches the original plaintext
+    expect(decrypt(cipherBuffer)).toBe(plaintext);
   });
 });
