@@ -39,9 +39,16 @@ export function wireEnvFiles(
     )
   );
 
+  if (!fs.existsSync(blockendEnvPath)) {
+    throw new Error(`blockend/.env not found at ${blockendEnvPath}. Run 'npm run setup' first.`);
+  }
+
   const blockendContent = fs.readFileSync(blockendEnvPath, "utf8");
   const pkMatch = blockendContent.match(/^PRIVATE_KEY=(.+)$/m);
   const privateKey = pkMatch ? pkMatch[1].trim() : "";
+  if (!privateKey) {
+    throw new Error("PRIVATE_KEY not found or empty in blockend/.env. Run 'npm run setup' first.");
+  }
 
   updateEnvFile(agentEnvPath, {
     PRIVATE_KEY: privateKey,

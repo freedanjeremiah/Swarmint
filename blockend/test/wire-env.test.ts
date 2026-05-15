@@ -81,4 +81,25 @@ describe("wireEnvFiles", () => {
       )
     ).to.throw("Run 'npm run deploy:galileo' first");
   });
+
+  it("throws when a contract key is missing from deployed_addresses.json", () => {
+    const p = setup();
+    // Overwrite with incomplete deployed addresses (missing AgentRegistry)
+    fs.writeFileSync(p.deployedPath, JSON.stringify({
+      "SwarmintDeploy#AgentINFT": "0xAAAA",
+      "SwarmintDeploy#SwarmMetaINFT": "0xCCCC",
+    }));
+    expect(() =>
+      wireEnvFiles(p.deployedPath, p.blockendEnvPath, p.agentEnvPath, p.webEnvPath, p.deploymentsOut)
+    ).to.throw('Missing key "SwarmintDeploy#AgentRegistry"');
+  });
+
+  it("throws when PRIVATE_KEY is missing from blockend env", () => {
+    const p = setup();
+    // Overwrite blockend env without a PRIVATE_KEY line
+    fs.writeFileSync(p.blockendEnvPath, "OTHER_KEY=value\n");
+    expect(() =>
+      wireEnvFiles(p.deployedPath, p.blockendEnvPath, p.agentEnvPath, p.webEnvPath, p.deploymentsOut)
+    ).to.throw("PRIVATE_KEY not found or empty");
+  });
 });
