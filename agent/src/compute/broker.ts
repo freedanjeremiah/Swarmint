@@ -88,7 +88,7 @@ export async function chat(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(headers as Record<string, string>),
+      ...(headers as unknown as Record<string, string>),
     },
     body: JSON.stringify({ model, messages: allMessages }),
   });
