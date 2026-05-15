@@ -99,7 +99,7 @@ export const agents: Agent[] = [
         description: "Track and manage NFT assets",
       },
     ],
-    avatarUrl: "/avatars/default.svg",
+    avatarUrl: "/avatars/personal-accountant.png",
   },
   {
     num: 2,
@@ -136,7 +136,7 @@ export const agents: Agent[] = [
         description: "Yield management optimization",
       },
     ],
-    avatarUrl: "/avatars/default.svg",
+    avatarUrl: "/avatars/financial-advisor.png",
   },
   {
     num: 3,
@@ -167,7 +167,7 @@ export const agents: Agent[] = [
         description: "Quick position management",
       },
     ],
-    avatarUrl: "/avatars/default.svg",
+    avatarUrl: "/avatars/degen.png",
   },
   {
     num: 4,
@@ -189,7 +189,7 @@ export const agents: Agent[] = [
         description: "Emergency position management",
       },
     ],
-    avatarUrl: "/avatars/default.svg",
+    avatarUrl: "/avatars/risk-manager.png",
   },
   {
     num: 5,
@@ -200,7 +200,7 @@ export const agents: Agent[] = [
     description:
       "The ultimate agent with unlimited access and capabilities across all domains. Combines financial expertise, research prowess, and governance mastery.",
     capabilities: allCapabilities,
-    avatarUrl: "/avatars/default.svg",
+    avatarUrl: "/avatars/god.png",
     apiendpoint: `${process.env.NEXT_PUBLIC_BACKEND_URL}/god-god-agent`,
   },
 
@@ -224,7 +224,7 @@ export const agents: Agent[] = [
         description: "Market data correlation",
       },
     ],
-    avatarUrl: "/avatars/default.svg",
+    avatarUrl: "/avatars/data-scientist.png",
   },
   {
     num: 7,
@@ -241,7 +241,7 @@ export const agents: Agent[] = [
         description: "Whale wallet monitoring",
       },
     ],
-    avatarUrl: "/avatars/default.svg",
+    avatarUrl: "/avatars/news-aggregator.png",
   },
   {
     num: 8,
@@ -262,7 +262,7 @@ export const agents: Agent[] = [
       },
       { name: "BalanceCapability", description: "Volume pattern analysis" },
     ],
-    avatarUrl: "/avatars/default.svg",
+    avatarUrl: "/avatars/pattern-detector.png",
   },
   {
     num: 9,
@@ -283,7 +283,7 @@ export const agents: Agent[] = [
         description: "Price-sentiment correlation",
       },
     ],
-    avatarUrl: "/avatars/default.svg",
+    avatarUrl: "/avatars/sentiment-analyzer.png",
   },
   // Governance Group
   {
@@ -300,7 +300,7 @@ export const agents: Agent[] = [
         description: "Stakeholder voting analysis",
       },
     ],
-    avatarUrl: "/avatars/default.svg",
+    avatarUrl: "/avatars/proposal-analyzer.png",
   },
   {
     num: 11,
@@ -312,7 +312,7 @@ export const agents: Agent[] = [
     capabilities: [
       { name: "BalanceCapability", description: "Voting power calculations" },
     ],
-    avatarUrl: "/avatars/default.svg",
+    avatarUrl: "/avatars/vote-calculator.png",
     apiendpoint: `${process.env.NEXT_PUBLIC_BACKEND_URL}/gov-vote-calculator`,
   },
   {
@@ -330,7 +330,7 @@ export const agents: Agent[] = [
       },
       { name: "TransferCapability", description: "Strategic move execution" },
     ],
-    avatarUrl: "/avatars/default.svg",
+    avatarUrl: "/avatars/strategy-coordinator.png",
   },
   //   {
   //     id: "impact-assessor",
