@@ -35,7 +35,7 @@ export function wireEnvFiles(
   fs.writeFileSync(
     deploymentsOutputPath,
     JSON.stringify(
-      { network: "galileo", chainId: 16600, AgentINFT: agentINFT, AgentRegistry: agentRegistry, SwarmMetaINFT: swarmMetaINFT },
+      { network: "galileo", chainId: 16602, AgentINFT: agentINFT, AgentRegistry: agentRegistry, SwarmMetaINFT: swarmMetaINFT },
       null, 2
     )
   );
@@ -82,7 +82,7 @@ export function wireEnvFiles(
 if (require.main === module) {
   const base = path.join(__dirname, "..");
   wireEnvFiles(
-    path.join(base, "ignition/deployments/chain-16600/deployed_addresses.json"),
+    path.join(base, "ignition/deployments/chain-16602/deployed_addresses.json"),
     path.join(base, ".env"),
     path.join(base, "../agent/.env"),
     path.join(base, "../web/.env.local"),
