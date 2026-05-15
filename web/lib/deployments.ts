@@ -1,34 +1,64 @@
 import type { Address } from "viem";
-import { swarm_abi, swarm_contract as defaultSwarmAddress } from "./swarmArtifacts";
+import { swarm_abi } from "./swarmArtifacts";
 
 export { swarm_abi };
 
 export function swarmContractAddress(): Address {
-  const v = process.env.NEXT_PUBLIC_SWARM_CONTRACT_ADDRESS as Address | undefined;
-  return v ?? (defaultSwarmAddress as Address);
+  return (process.env.NEXT_PUBLIC_SWARM_CONTRACT_ADDRESS ?? "") as Address;
 }
 
-/** Meta-swarm / composition contract; defaults to primary swarm when unset. */
 export function metaSwarmContractAddress(): Address {
-  const v = process.env.NEXT_PUBLIC_META_SWARM_CONTRACT_ADDRESS as Address | undefined;
-  return v ?? swarmContractAddress();
+  return (process.env.NEXT_PUBLIC_META_SWARM_CONTRACT_ADDRESS ?? "") as Address;
 }
-
-const ZERO = "0x0000000000000000000000000000000000000000" as Address;
 
 export function agentNftContractAddress(): Address | undefined {
   const v = process.env.NEXT_PUBLIC_AGENT_NFT_CONTRACT_ADDRESS as Address | undefined;
-  if (!v || v === ZERO) return undefined;
+  if (!v || v === "0x0000000000000000000000000000000000000000") return undefined;
   return v;
 }
 
-/** Minimal ABI for agent mint — replace when your contract differs. */
+export function agentRegistryContractAddress(): Address | undefined {
+  const v = process.env.NEXT_PUBLIC_AGENT_REGISTRY_CONTRACT_ADDRESS as Address | undefined;
+  if (!v || v === "0x0000000000000000000000000000000000000000") return undefined;
+  return v;
+}
+
 export const agent_nft_abi = [
   {
-    type: "function",
+    inputs: [
+      { internalType: "uint256", name: "agentId", type: "uint256" },
+      { internalType: "bytes32", name: "dataHash", type: "bytes32" },
+    ],
     name: "mint",
-    inputs: [{ name: "agentId", type: "uint256" }],
-    outputs: [{ name: "tokenId", type: "uint256" }],
+    outputs: [{ internalType: "uint256", name: "tokenId", type: "uint256" }],
     stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "tokenId", type: "uint256" }],
+    name: "tokenDataHash",
+    outputs: [{ internalType: "bytes32", name: "", type: "bytes32" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
+
+export const agent_registry_abi = [
+  {
+    inputs: [
+      { internalType: "uint256", name: "agentId", type: "uint256" },
+      { internalType: "uint256", name: "tokenId", type: "uint256" },
+    ],
+    name: "register",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "agentId", type: "uint256" }],
+    name: "getTokenId",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
   },
 ] as const;

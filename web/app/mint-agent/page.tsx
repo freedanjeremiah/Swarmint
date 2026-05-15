@@ -45,7 +45,7 @@ export default function MintAgentPage() {
       address: nft,
       abi: agent_nft_abi,
       functionName: "mint",
-      args: [BigInt(agent.num)],
+      args: [BigInt(agent.num), `0x${"00".repeat(32)}` as `0x${string}`],
     });
   };
 
