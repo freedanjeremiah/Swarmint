@@ -31,6 +31,7 @@ export function wireEnvFiles(
     if (!addr) throw new Error(`Missing key "${name}" in deployed_addresses.json`);
   }
 
+  fs.mkdirSync(path.dirname(deploymentsOutputPath), { recursive: true });
   fs.writeFileSync(
     deploymentsOutputPath,
     JSON.stringify(
