@@ -17,6 +17,7 @@ export function addressExplorerUrl(
 function explorerBaseForChain(chainId: number): string | undefined {
   const custom = process.env.NEXT_PUBLIC_EXPLORER_BASE_URL;
   if (custom) return custom;
+  if (chainId === 16600) return "https://chainscan-galileo.0g.ai";
   if (chainId === 84532) return "https://sepolia.basescan.org";
   return process.env.NEXT_PUBLIC_TARGET_EXPLORER_BASE_URL;
 }

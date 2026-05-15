@@ -1,23 +1,21 @@
 import { defineChain } from "viem";
-import { baseSepolia } from "viem/chains";
 
-const targetId = Number(process.env.NEXT_PUBLIC_TARGET_CHAIN_ID || 0);
-const targetRpc =
-  process.env.NEXT_PUBLIC_TARGET_RPC_URL || "https://sepolia.base.org";
+export const galileo = defineChain({
+  id: 16600,
+  name: "0G Chain Galileo",
+  nativeCurrency: { name: "0G", symbol: "A0GI", decimals: 18 },
+  rpcUrls: {
+    default: {
+      http: [process.env.NEXT_PUBLIC_ZG_RPC_URL ?? "https://evmrpc-testnet.0g.ai"],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: "0G Explorer",
+      url: "https://chainscan-galileo.0g.ai",
+    },
+  },
+});
 
-/** Optional second chain (e.g. mainnet deployment). Omitted when unset or same as Base Sepolia. */
-export const configuredTargetChain =
-  targetId > 0 && targetId !== baseSepolia.id
-    ? defineChain({
-        id: targetId,
-        name: "Target chain",
-        nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-        rpcUrls: { default: { http: [targetRpc] } },
-      })
-    : null;
-
-export const appChains = configuredTargetChain
-  ? ([baseSepolia, configuredTargetChain] as const)
-  : ([baseSepolia] as const);
-
+export const appChains = [galileo] as const;
 export type AppChain = (typeof appChains)[number];
