@@ -5,8 +5,10 @@
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
+    "setup": "ts-node scripts/setup-wallet.ts",
     "deploy:galileo": "hardhat ignition deploy ignition/modules/Deploy.ts --network galileo",
-    "save-deployments": "ts-node scripts/save-deployments.ts"
+    "save-deployments": "ts-node scripts/save-deployments.ts",
+    "wire": "ts-node scripts/wire-env.ts"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
