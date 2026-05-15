@@ -15,7 +15,42 @@ const sizeClasses: Record<LogoSize, string> = {
   large: "text-6xl",
 };
 
+const segments = [
+  {
+    text: "sw",
+    primary: "text-purple-500",
+    shadow: "text-cyan-400",
+    glow: "drop-shadow-[0_0_8px_rgba(168,85,247,0.8)]",
+  },
+  {
+    text: "A",
+    primary: "text-cyan-400",
+    shadow: "text-purple-500",
+    glow: "drop-shadow-[0_0_12px_rgba(34,211,238,0.9)]",
+  },
+  {
+    text: "rm",
+    primary: "text-purple-500",
+    shadow: "text-cyan-400",
+    glow: "drop-shadow-[0_0_8px_rgba(168,85,247,0.8)]",
+  },
+  {
+    text: "I",
+    primary: "text-cyan-400",
+    shadow: "text-purple-500",
+    glow: "drop-shadow-[0_0_12px_rgba(34,211,238,0.9)]",
+  },
+  {
+    text: "nt",
+    primary: "text-purple-500",
+    shadow: "text-cyan-400",
+    glow: "drop-shadow-[0_0_8px_rgba(168,85,247,0.8)]",
+  },
+];
+
 const LogoComponent: React.FC<LogoComponentProps> = ({ size = "large" }) => {
+  const cls = sizeClasses[size];
+
   return (
     <motion.div
       className="relative cursor-pointer p-2"
@@ -25,95 +60,33 @@ const LogoComponent: React.FC<LogoComponentProps> = ({ size = "large" }) => {
       {/* Background effect */}
       <div className="absolute inset-0 bg-black/10 backdrop-blur-sm rounded-lg" />
 
-      {/* Main logo container */}
       <div className="relative flex flex-col items-center">
-        {/* Top row: block ch n */}
-        <div className="flex items-center justify-between w-full">
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5 }}
-            className="relative"
-          >
-            <span
-              className={`${sizeClasses[size]} font-pixel font-bold text-purple-500 
-              drop-shadow-[0_0_8px_rgba(168,85,247,0.8)] relative z-10`}
-            >
-              block
-            </span>
-            <span
-              className={`${sizeClasses[size]} font-pixel font-bold text-cyan-400 
-              absolute left-[2px] top-[2px] opacity-80 z-0`}
-            >
-              block
-            </span>
-          </motion.div>
-
-          <div className="flex items-center space-x-4">
+        {/* Single-row logo */}
+        <div className="flex items-baseline">
+          {segments.map(({ text, primary, shadow, glow }, i) => (
             <motion.div
-              initial={{ opacity: 0, scale: 0 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
+              key={i}
               className="relative"
+              initial={{ opacity: 0, y: i % 2 === 0 ? -20 : 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: i * 0.1 }}
             >
               <span
-                className={`${sizeClasses[size]} font-pixel font-bold text-cyan-400 
-                drop-shadow-[0_0_8px_rgba(34,211,238,0.8)] relative z-10`}
+                className={`${cls} font-pixel font-bold ${primary} ${glow} relative z-10`}
               >
-                ch
+                {text}
               </span>
+              {/* Chromatic aberration offset */}
               <span
-                className={`${sizeClasses[size]} font-pixel font-bold text-purple-500 
-                absolute left-[2px] top-[2px] opacity-80 z-0`}
+                className={`${cls} font-pixel font-bold ${shadow} absolute left-[2px] top-[2px] opacity-80 z-0`}
               >
-                ch
+                {text}
               </span>
             </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, scale: 0 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-              className="relative pl-44"
-            >
-              <span
-                className={`${sizeClasses[size]} font-pixel font-bold text-cyan-400
-                drop-shadow-[0_0_8px_rgba(168,85,247,0.8)] relative z-10`}
-              >
-                n
-              </span>
-              <span
-                className={`${sizeClasses[size]} font-pixel font-bold  text-purple-500 
-                absolute left-[2px] top-[2px] opacity-80 z-0  pl-44 `}
-              >
-                n
-              </span>
-            </motion.div>
-          </div>
+          ))}
         </div>
 
-        {/* Bottom row: AI */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-          className="relative pl-96 -mt-10 -ml-4" // Adjusted spacing
-        >
-          <span
-            className={`${sizeClasses[size]} font-pixel font-bold text-purple-500 
-            drop-shadow-[0_0_8px_rgba(34,211,238,0.8)] relative z-10`}
-          >
-            AI
-          </span>
-          <span
-            className={`${sizeClasses[size]} font-pixel font-bold text-cyan-400 
-            absolute left-[2px] top-[2px] opacity-80 z-0 pl-96`}
-          >
-            AI
-          </span>
-        </motion.div>
-
-        {/* Decorative line */}
+        {/* Decorative gradient line */}
         <motion.div
           className="w-full h-1 bg-gradient-to-r from-purple-500 via-cyan-400 to-purple-500 mt-2 rounded-full"
           initial={{ scaleX: 0 }}
@@ -122,7 +95,7 @@ const LogoComponent: React.FC<LogoComponentProps> = ({ size = "large" }) => {
         />
       </div>
 
-      {/* Animated glitch effect */}
+      {/* Animated glitch overlay */}
       <motion.div
         animate={{
           opacity: [0, 0.2, 0],
