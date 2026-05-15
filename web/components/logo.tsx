@@ -65,7 +65,7 @@ const LogoComponent: React.FC<LogoComponentProps> = ({ size = "large" }) => {
         <div className="flex items-baseline">
           {segments.map(({ text, primary, shadow, glow }, i) => (
             <motion.div
-              key={i}
+              key={text}
               className="relative"
               initial={{ opacity: 0, y: i % 2 === 0 ? -20 : 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -97,15 +97,8 @@ const LogoComponent: React.FC<LogoComponentProps> = ({ size = "large" }) => {
 
       {/* Animated glitch overlay */}
       <motion.div
-        animate={{
-          opacity: [0, 0.2, 0],
-          x: [-2, 2, -2],
-          transition: {
-            duration: 0.4,
-            repeat: Infinity,
-            repeatType: "reverse",
-          },
-        }}
+        animate={{ opacity: [0, 0.2, 0], x: [-2, 2, -2] }}
+        transition={{ duration: 0.4, repeat: Infinity, repeatType: "reverse" }}
         className="absolute inset-0 bg-cyan-400/20"
       />
     </motion.div>
