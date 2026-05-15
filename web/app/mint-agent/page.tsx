@@ -38,7 +38,7 @@ export default function MintAgentPage() {
   );
 
   const { data: hash, writeContract } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const { isSuccess } = useWaitForTransactionReceipt({ hash });
 
   if (isSuccess && step === "confirming") setStep("done");
 

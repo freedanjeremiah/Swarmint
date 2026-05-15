@@ -1,15 +1,20 @@
-export type AgentStepRole = "recommend" | "dissent" | "veto" | "info";
-
-export interface AgentStep {
-  agentId: string;
-  role: AgentStepRole;
-  summary: string;
-  at: string;
+export interface AgentRecord {
+  agentId: number;
+  agentName: string;
+  recommendation: string;
+  attestation: string;
+  dissent: boolean;
+  veto?: boolean;
+  vetoReason?: string;
 }
 
 export interface DeliberationRecord {
+  swarmId: string;
   threadId: string;
-  merkleRoot?: string;
-  anchorTxHash?: string;
-  steps: AgentStep[];
+  timestamp: string;
+  prompt: string;
+  agents: AgentRecord[];
+  outcome: "approved" | "vetoed";
+  deliberationRoot?: string;
+  onChainTxHash?: string;
 }

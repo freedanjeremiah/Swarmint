@@ -16,7 +16,7 @@ export interface SwarmEventItem {
 function isDeliberationRecord(v: unknown): v is DeliberationRecord {
   if (!v || typeof v !== "object") return false;
   const o = v as Record<string, unknown>;
-  return typeof o.threadId === "string" && Array.isArray(o.steps);
+  return typeof o.threadId === "string" && Array.isArray(o.agents);
 }
 
 export function SwarmActivityPanel({
@@ -78,20 +78,20 @@ export function SwarmActivityPanel({
             {error}
           </p>
         )}
-        {record?.steps?.length ? (
+        {record?.agents?.length ? (
           <div className="space-y-3 mb-6">
-            {record.steps.map((step, i) => {
-              const agent = agents.find((a) => a.id === step.agentId);
+            {record.agents.map((agent, i) => {
+              const agentConfig = agents.find((a) => String(a.id) === String(agent.agentId));
               return (
                 <div
-                  key={`${step.at}-${i}`}
+                  key={`${agent.agentId}-${i}`}
                   className="rounded-lg border border-purple-500/20 bg-purple-500/10 p-3"
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    {agent && (
+                    {agentConfig && (
                       <div className="relative w-6 h-6">
                         <Image
-                          src={agent.avatarUrl}
+                          src={agentConfig.avatarUrl}
                           alt=""
                           fill
                           className="object-contain"
@@ -99,28 +99,30 @@ export function SwarmActivityPanel({
                       </div>
                     )}
                     <span className="text-xs font-medium text-cyan-200">
-                      {agent?.name ?? step.agentId}
+                      {agent.agentName}
                     </span>
-                    <span className="text-[10px] uppercase text-gray-500">
-                      {step.role}
-                    </span>
+                    {agent.veto && (
+                      <span className="text-[10px] uppercase text-red-400">veto</span>
+                    )}
+                    {agent.dissent && !agent.veto && (
+                      <span className="text-[10px] uppercase text-amber-400">dissent</span>
+                    )}
                   </div>
-                  <p className="text-xs text-gray-300">{step.summary}</p>
-                  <p className="text-[10px] text-gray-500 mt-1">{step.at}</p>
+                  <p className="text-xs text-gray-300">{agent.recommendation}</p>
                 </div>
               );
             })}
-            {record.merkleRoot && (
+            {record.deliberationRoot && (
               <div className="text-xs text-gray-400 break-all">
                 <span className="text-gray-500">Root: </span>
-                {record.merkleRoot}
+                {record.deliberationRoot}
               </div>
             )}
-            {record.anchorTxHash && (
+            {record.onChainTxHash && (
               <div className="mt-2">
                 <ExplorerTxLink
                   chainId={chainId}
-                  hash={record.anchorTxHash}
+                  hash={record.onChainTxHash}
                   label="Anchor tx"
                 />
               </div>
