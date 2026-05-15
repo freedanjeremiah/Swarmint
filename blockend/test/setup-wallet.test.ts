@@ -2,6 +2,7 @@ import { expect } from "chai";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import { ethers } from "ethers";
 import { generateAndWriteWallet } from "../scripts/setup-wallet";
 
 describe("generateAndWriteWallet", () => {
@@ -30,5 +31,10 @@ describe("generateAndWriteWallet", () => {
 
     const aContent = fs.readFileSync(agentEnvPath, "utf8");
     expect(aContent).to.match(/^ZG_ENCRYPTION_KEY=[0-9a-fA-F]{64}$/m);
+
+    const pkMatch = bContent.match(/^PRIVATE_KEY=(0x[0-9a-fA-F]{64})$/m);
+    const writtenKey = pkMatch![1];
+    const reconstructed = new ethers.Wallet(writtenKey);
+    expect(reconstructed.address).to.equal(address);
   });
 });

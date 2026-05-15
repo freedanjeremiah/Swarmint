@@ -11,7 +11,12 @@ export function setEnvKey(content: string, key: string, value: string): string {
 }
 
 export function updateEnvFile(filePath: string, updates: Record<string, string>): void {
-  let content = fs.readFileSync(filePath, "utf8");
+  let content = "";
+  try {
+    content = fs.readFileSync(filePath, "utf8");
+  } catch (e: any) {
+    if (e.code !== "ENOENT") throw e;
+  }
   for (const [key, value] of Object.entries(updates)) {
     content = setEnvKey(content, key, value);
   }

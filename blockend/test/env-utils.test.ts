@@ -52,4 +52,11 @@ describe("updateEnvFile", () => {
     const result = fs.readFileSync(tmpFile, "utf8");
     expect(result).to.equal("A=new_a\nB=new_b\n");
   });
+
+  it("creates the file when it does not exist", () => {
+    const nonExistentPath = path.join(tmpDir, "nonexistent.env");
+    updateEnvFile(nonExistentPath, { FOO: "bar" });
+    const result = fs.readFileSync(nonExistentPath, "utf8");
+    expect(result).to.equal("FOO=bar\n");
+  });
 });
