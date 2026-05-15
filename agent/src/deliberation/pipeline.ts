@@ -105,7 +105,13 @@ export async function runDeliberation(input: PipelineInput): Promise<Deliberatio
   };
 
   // Step 7: Upload record JSON to 0G Storage Log via uploadEncrypted() — get root
-  const { root } = await uploadEncrypted(JSON.stringify(record));
+  let root: string;
+  try {
+    const result = await uploadEncrypted(JSON.stringify(record));
+    root = result.root;
+  } catch (e) {
+    throw new Error(`0G Storage upload failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
   record.deliberationRoot = root;
 
   // Step 8: Call SwarmMetaINFT.updateDeliberationRoot on-chain via ethers
@@ -116,13 +122,16 @@ export async function runDeliberation(input: PipelineInput): Promise<Deliberatio
     SWARM_META_ABI,
     signer,
   );
-  const tx = await contract.updateDeliberationRoot(swarmTokenId, root);
-  record.onChainTxHash = tx.hash;
+  try {
+    const tx = await contract.updateDeliberationRoot(swarmTokenId, root);
+    record.onChainTxHash = tx.hash;
+  } catch (e) {
+    throw new Error(`On-chain deliberation root update failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
 
   // Step 9: Update KV memory with decision summary
   const summary = `[${record.timestamp}] ${userPrompt} → ${outcome.toUpperCase()}`;
-  const existing = await readMemory(sid);
-  const updated = existing ? `${existing}\n${summary}` : summary;
+  const updated = memory ? `${memory}\n${summary}` : summary;
   await writeMemory(sid, updated);
 
   // Step 10: Return full DeliberationRecord
