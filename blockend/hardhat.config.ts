@@ -17,6 +17,11 @@ const config: HardhatUserConfig = {
       chainId: 16602,
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
     },
+    zg_mainnet: {
+      url: "https://evmrpc.0g.ai",
+      chainId: 16661,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+    },
   },
   paths: {
     sources: "./contracts",

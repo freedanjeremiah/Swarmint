@@ -83,13 +83,13 @@ Swarmint keeps the core idea of blockchAIn — the visual swarm builder and the 
 
 ---
 
-## 6. Deployed Contracts (Galileo Testnet, chain 16602)
+## 6. Deployed Contracts (0G Mainnet, chain 16661)
 
 | Contract | Address | Explorer |
 |----------|---------|---------|
-| AgentINFT | `0x669545CFbb78C79be84D3B8344e3287FADc49983` | [View](https://chainscan-galileo.0g.ai/address/0x669545CFbb78C79be84D3B8344e3287FADc49983) |
-| AgentRegistry | `0x68CDD71731a71bDFf83f991F2047F95a04EF8FD8` | [View](https://chainscan-galileo.0g.ai/address/0x68CDD71731a71bDFf83f991F2047F95a04EF8FD8) |
-| SwarmMetaINFT | `0x794B7E5124a6a9b41681C6F03bEF74B8FE527a6B` | [View](https://chainscan-galileo.0g.ai/address/0x794B7E5124a6a9b41681C6F03bEF74B8FE527a6B) |
+| AgentINFT | `0x669545CFbb78C79be84D3B8344e3287FADc49983` | [View](https://chainscan.0g.ai/address/0x669545CFbb78C79be84D3B8344e3287FADc49983) |
+| AgentRegistry | `0x794B7E5124a6a9b41681C6F03bEF74B8FE527a6B` | [View](https://chainscan.0g.ai/address/0x794B7E5124a6a9b41681C6F03bEF74B8FE527a6B) |
+| SwarmMetaINFT | `0x0e10691089F0b5c62937F4598E47C1D1aE4e598A` | [View](https://chainscan.0g.ai/address/0x0e10691089F0b5c62937F4598E47C1D1aE4e598A) |
 
 ---
 
@@ -99,7 +99,7 @@ Swarmint keeps the core idea of blockchAIn — the visual swarm builder and the 
 |------------|-------|
 | **0G Compute** | TEE-verified LLM inference via dstack attestation. Model: `qwen/qwen-2.5-7b-instruct`. Each agent response includes a full attestation quote bound into the deliberation record. |
 | **0G Storage** | Agent system prompts and deliberation records stored as AES-256-GCM encrypted blobs. Merkle root (`bytes32`) is the on-chain pointer — plaintext never leaves the agent server. |
-| **0G Chain Galileo** | Chain ID 16602. All three contracts deployed via Hardhat Ignition. Wallet signs `updateDeliberationRoot` directly via wagmi — no server-side private key touches on-chain state. |
+| **0G Chain Mainnet** | Chain ID 16661. All three contracts deployed via Hardhat Ignition. Wallet signs `updateDeliberationRoot` directly via wagmi — no server-side private key touches on-chain state. |
 | **0G KV** | Persistent swarm memory across deliberation sessions (optional; gracefully degraded if unavailable). |
 
 ---
@@ -122,36 +122,36 @@ Swarmint keeps the core idea of blockchAIn — the visual swarm builder and the 
 ### Prerequisites
 
 - Node.js 20+
-- A wallet funded with 0G Galileo testnet tokens
+- A wallet funded with 0G mainnet tokens
 - An agent server wallet with ≥ 3 OG (for 0G Compute ledger)
 
 ### Environment Variables
 
 **`agent/.env`**
 ```
-ZG_RPC_URL=https://evmrpc-testnet.0g.ai
+ZG_RPC_URL=https://evmrpc.0g.ai
 PRIVATE_KEY=0x<agent-server-wallet-private-key>
 ZG_PROVIDER_ADDRESS=0xa48f01287233509FD694a22Bf840225062E67836
-ZG_INDEXER_URL=https://indexer-storage-testnet-turbo.0g.ai
+ZG_INDEXER_URL=https://indexer-storage-turbo.0g.ai
 ZG_ENCRYPTION_KEY=<32-byte-hex>
-ZG_KV_URL=https://kv-testnet.0g.ai
+ZG_KV_URL=https://kv.0g.ai
 AGENT_INFT_ADDRESS=0x669545CFbb78C79be84D3B8344e3287FADc49983
-AGENT_REGISTRY_ADDRESS=0x68CDD71731a71bDFf83f991F2047F95a04EF8FD8
-SWARM_META_INFT_ADDRESS=0x794B7E5124a6a9b41681C6F03bEF74B8FE527a6B
+AGENT_REGISTRY_ADDRESS=0x794B7E5124a6a9b41681C6F03bEF74B8FE527a6B
+SWARM_META_INFT_ADDRESS=0x0e10691089F0b5c62937F4598E47C1D1aE4e598A
 FRONTEND_URL=http://localhost:3000
 PORT=8000
 ```
 
 **`web/.env.local`**
 ```
-NEXT_PUBLIC_CHAIN_ID=16602
-NEXT_PUBLIC_RPC_URL=https://evmrpc-testnet.0g.ai
+NEXT_PUBLIC_CHAIN_ID=16661
+NEXT_PUBLIC_RPC_URL=https://evmrpc.0g.ai
 NEXT_PUBLIC_AGENT_NFT_CONTRACT_ADDRESS=0x669545CFbb78C79be84D3B8344e3287FADc49983
-NEXT_PUBLIC_AGENT_REGISTRY_CONTRACT_ADDRESS=0x68CDD71731a71bDFf83f991F2047F95a04EF8FD8
-NEXT_PUBLIC_SWARM_CONTRACT_ADDRESS=0x794B7E5124a6a9b41681C6F03bEF74B8FE527a6B
-NEXT_PUBLIC_META_SWARM_CONTRACT_ADDRESS=0x794B7E5124a6a9b41681C6F03bEF74B8FE527a6B
+NEXT_PUBLIC_AGENT_REGISTRY_CONTRACT_ADDRESS=0x794B7E5124a6a9b41681C6F03bEF74B8FE527a6B
+NEXT_PUBLIC_SWARM_CONTRACT_ADDRESS=0x0e10691089F0b5c62937F4598E47C1D1aE4e598A
+NEXT_PUBLIC_META_SWARM_CONTRACT_ADDRESS=0x0e10691089F0b5c62937F4598E47C1D1aE4e598A
 NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
-NEXT_PUBLIC_EXPLORER_BASE_URL=https://chainscan-galileo.0g.ai
+NEXT_PUBLIC_EXPLORER_BASE_URL=https://chainscan.0g.ai
 ```
 
 ### One-time: Initialize 0G Compute Ledger
@@ -179,7 +179,7 @@ npm run dev
 
 ### User Flow
 
-1. Connect wallet (Dynamic Labs) on 0G Galileo (chain 16602)
+1. Connect wallet (Dynamic Labs) on 0G Mainnet (chain 16661)
 2. Go to **Dashboard → Explore Agents** → click **Mint iNFT** on any agent
 3. Approve 2 transactions: `AgentINFT.mint` then `AgentRegistry.register`
 4. Go to **Create Swarm** → select 2+ minted agents → compose swarm
