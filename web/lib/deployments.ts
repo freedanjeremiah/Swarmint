@@ -48,6 +48,17 @@ export const agent_nft_abi = [
     stateMutability: "view",
     type: "function",
   },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: "uint256", name: "tokenId", type: "uint256" },
+      { indexed: true, internalType: "uint256", name: "agentId", type: "uint256" },
+      { indexed: false, internalType: "address", name: "owner", type: "address" },
+      { indexed: false, internalType: "bytes32", name: "dataHash", type: "bytes32" },
+    ],
+    name: "AgentMinted",
+    type: "event",
+  },
 ] as const;
 
 export const agent_registry_abi = [

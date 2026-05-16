@@ -11,142 +11,146 @@ import SwarmCard from "@/components/swarm-card";
 import { agents } from "@/config/agents";
 import CreateSwarmCard from "@/components/createSwarm";
 import { DynamicWidget } from "@dynamic-labs/sdk-react-core";
-import { Swarm } from "@/types/agents";
-import { swarm_abi, swarmContractAddress } from "@/lib/deployments";
-import { Abi } from "viem";
+import type { Swarm } from "@/types/agents";
+import {
+  swarm_abi,
+  agent_nft_abi,
+  swarmContractAddress,
+  agentNftContractAddress,
+} from "@/lib/deployments";
+import type { Abi } from "viem";
 import { ChainBanner } from "@/components/chain-banner";
 import Link from "next/link";
 import { EXPECTED_CHAIN_ID } from "@/lib/expected-chain";
 
-const CONTRACT_ADDRESS = swarmContractAddress();
-const CONTRACT_ABI = swarm_abi as Abi;
+const SWARM_ADDRESS = swarmContractAddress();
+const SWARM_ABI = swarm_abi as Abi;
 
 export default function DashboardPage() {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
+  const onCorrectChain = chainId === EXPECTED_CHAIN_ID;
 
-  const {
-    data: swarmIdsResult,
-    isPending: isLoadingSwarmIds,
-    error: swarmIdsError,
-  } = useReadContracts({
+  // Step 1: Get user's swarm token IDs
+  const { data: swarmIdsResult, isPending: isLoadingSwarmIds } = useReadContracts({
     contracts: [
       {
-        address: CONTRACT_ADDRESS,
-        abi: CONTRACT_ABI,
+        address: SWARM_ADDRESS,
+        abi: SWARM_ABI,
         functionName: "getUserSwarms",
         args: [address as `0x${string}`],
       },
     ],
-    query: {
-      enabled: !!address && isConnected && chainId === EXPECTED_CHAIN_ID,
-    },
+    query: { enabled: !!address && isConnected && onCorrectChain },
   });
 
   const swarmIds = swarmIdsResult?.[0]?.result as readonly bigint[] | undefined;
 
-  const swarmDetailsContracts =
-    swarmIds
-      ?.map((swarmId) => [
-        {
-          address: CONTRACT_ADDRESS,
-          abi: CONTRACT_ABI,
-          functionName: "getSwarmDetails",
-          args: [swarmId],
-        },
-        {
-          address: CONTRACT_ADDRESS,
-          abi: CONTRACT_ABI,
-          functionName: "getSwarmAgents",
-          args: [swarmId],
-        },
-      ])
-      .flat() || [];
-
-  const {
-    data: swarmDetailsResult,
-    isPending: isLoadingDetails,
-    error: swarmDetailsError,
-  } = useReadContracts({
-    contracts: swarmDetailsContracts,
-    query: {
-      enabled: !!swarmIds?.length && chainId === EXPECTED_CHAIN_ID,
+  // Step 2: For each swarmId, read swarms() metadata + getSwarmMembers() in one batch
+  const swarmInfoCalls = (swarmIds ?? []).flatMap((swarmId) => [
+    {
+      address: SWARM_ADDRESS,
+      abi: SWARM_ABI,
+      functionName: "swarms" as const,
+      args: [swarmId] as const,
     },
+    {
+      address: SWARM_ADDRESS,
+      abi: SWARM_ABI,
+      functionName: "getSwarmMembers" as const,
+      args: [swarmId] as const,
+    },
+  ]);
+
+  const { data: swarmInfoResults, isPending: isLoadingSwarmInfo } = useReadContracts({
+    contracts: swarmInfoCalls,
+    query: { enabled: (swarmIds?.length ?? 0) > 0 && onCorrectChain },
   });
 
+  // Step 3: Collect all member token IDs across all swarms for tokenAgentId multicall
+  const allMemberTokenIds: bigint[] = [];
+  if (swarmInfoResults) {
+    for (let i = 0; i < (swarmIds?.length ?? 0); i++) {
+      const membersResult = swarmInfoResults[i * 2 + 1];
+      if (membersResult?.status === "success") {
+        const tokenIds = membersResult.result as readonly bigint[];
+        allMemberTokenIds.push(...tokenIds);
+      }
+    }
+  }
+
+  const agentNftAddr = agentNftContractAddress();
+  const tokenAgentIdCalls = allMemberTokenIds.map((tokenId) => ({
+    address: agentNftAddr as `0x${string}`,
+    abi: agent_nft_abi,
+    functionName: "tokenAgentId" as const,
+    args: [tokenId] as const,
+  }));
+
+  const { data: tokenAgentIdResults, isPending: isLoadingTokenIds } = useReadContracts({
+    contracts: tokenAgentIdCalls,
+    query: { enabled: allMemberTokenIds.length > 0 && !!agentNftAddr },
+  });
+
+  // Build tokenId → archetypeId map
+  const tokenToArchetype: Record<string, number> = {};
+  allMemberTokenIds.forEach((tokenId, i) => {
+    const r = tokenAgentIdResults?.[i];
+    if (r?.status === "success") {
+      tokenToArchetype[tokenId.toString()] = Number(r.result as bigint);
+    }
+  });
+
+  // Reconstruct userSwarms
   const userSwarms: Swarm[] = [];
-
-  if (swarmIds && swarmDetailsResult) {
+  if (swarmIds && swarmInfoResults) {
     for (let i = 0; i < swarmIds.length; i++) {
-      const detailsResult = swarmDetailsResult[i * 2]?.result as
-        | [string, bigint, bigint, number, string]
-        | undefined;
-      const agentsResult = swarmDetailsResult[i * 2 + 1]?.result as
-        | readonly bigint[]
-        | undefined;
+      const metaResult = swarmInfoResults[i * 2];
+      const membersResult = swarmInfoResults[i * 2 + 1];
+      if (!metaResult || !membersResult) continue;
 
-      if (!detailsResult || !agentsResult) continue;
+      // swarms() returns [threadId, deliberationRoot, createdAt, status]
+      const meta = metaResult.result as readonly [string, `0x${string}`, bigint, number] | undefined;
+      const memberTokenIds = (
+        membersResult.status === "success" ? (membersResult.result as readonly bigint[]) : []
+      );
 
-      const [threadId, agentCount, createdAt] = detailsResult;
-      const swarmId = swarmIds[i];
+      const createdAt = meta ? Number(meta[2]) : 0;
+      const threadId = meta ? meta[0] : "";
 
-      const swarmAgents = agentsResult
-        .map((id) => {
-          const agent = agents.find((a) => a.num === Number(id));
-          return agent ? agent.id : null;
+      const swarmAgentIds = memberTokenIds
+        .map((tokenId) => {
+          const archetypeId = tokenToArchetype[tokenId.toString()];
+          return agents.find((a) => a.archetypeId === archetypeId)?.id ?? null;
         })
-        .filter(Boolean);
-
-      const createdDate = new Date(Number(createdAt) * 1000);
+        .filter(Boolean) as string[];
 
       userSwarms.push({
-        id: swarmId.toString(),
-        name: `Swarm ${swarmId}`,
-        description: `A dynamic swarm of ${agentCount} specialized agents`,
-        agents: swarmAgents as string[],
-        lastActive: createdDate.toISOString(),
-        created: createdDate.toISOString(),
+        id: swarmIds[i].toString(),
+        name: `Swarm #${swarmIds[i]}`,
+        description: `A swarm of ${memberTokenIds.length} agents`,
+        agents: swarmAgentIds,
+        lastActive: createdAt > 0 ? new Date(createdAt * 1000).toISOString() : new Date().toISOString(),
+        created: createdAt > 0 ? new Date(createdAt * 1000).toISOString() : new Date().toISOString(),
         threadId,
       });
     }
   }
 
-  const handleCreateSwarm = () => {
-    window.location.href = "/createswarm";
-  };
-
-  const handleEnterSwarm = (swarmId: string) => {
-    window.location.href = `/swarm/${swarmId}`;
-  };
-
-  if (swarmIdsError || swarmDetailsError) {
-    return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
-        <div className="text-center max-w-md px-4">
-          <p className="text-red-500 mb-4">Error loading swarms</p>
-          <p className="text-sm text-gray-400 break-words">
-            {(swarmIdsError || swarmDetailsError)?.message}
-          </p>
-        </div>
-      </div>
-    );
-  }
+  const isLoading = isLoadingSwarmIds || isLoadingSwarmInfo || isLoadingTokenIds;
 
   return (
     <div className="min-h-screen bg-black text-white overflow-hidden">
       <OptimizedBackground />
       <ChainBanner />
 
-      <header className="border-b border-purple-500/20 bg-black/30 backdrop-blur-sm backdrop-opacity-20 fixed top-0 w-full z-50">
+      <header className="border-b border-purple-500/20 bg-black/30 backdrop-blur-sm fixed top-0 w-full z-50">
         <div className="container mx-auto px-4 flex justify-between items-center h-16">
           <div className="scale-50 origin-left">
             <LogoComponent />
           </div>
           <div className="flex items-center gap-4">
-            <Link
-              href="/mint-agent"
-              className="text-xs text-cyan-300 hover:underline hidden sm:inline"
-            >
+            <Link href="/mint-agent" className="text-xs text-cyan-300 hover:underline hidden sm:inline">
               Mint agent
             </Link>
             <DynamicWidget />
@@ -176,45 +180,39 @@ export default function DashboardPage() {
               <motion.div
                 whileHover={{ scale: 1.02 }}
                 className="relative group rounded-xl overflow-hidden cursor-pointer"
-                onClick={handleCreateSwarm}
+                onClick={() => { window.location.href = "/createswarm"; }}
               >
-                <CreateSwarmCard onClick={handleCreateSwarm} />
+                <CreateSwarmCard onClick={() => { window.location.href = "/createswarm"; }} />
               </motion.div>
 
               {!isConnected ? (
                 <div className="col-span-full text-center text-gray-400">
                   Connect your wallet to view your swarms
                 </div>
-              ) : isLoadingSwarmIds ? (
+              ) : !onCorrectChain ? (
+                <div className="col-span-full text-center text-amber-400">
+                  Switch to 0G Galileo (chain 16602) to view swarms
+                </div>
+              ) : isLoading ? (
                 <div className="col-span-full flex justify-center items-center min-h-[200px]">
                   <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500" />
                 </div>
               ) : !swarmIds || swarmIds.length === 0 ? (
                 <div className="col-span-full text-center text-gray-400">
-                  Create a swarm to get started!
+                  No swarms yet — create one to get started!
                 </div>
-              ) : isLoadingDetails ? (
-                <div className="col-span-full flex justify-center items-center min-h-[200px]">
-                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500" />
-                </div>
-              ) : userSwarms.length > 0 ? (
+              ) : (
                 userSwarms.map((swarm) => (
                   <div key={swarm.id} className="space-y-2">
-                    <SwarmCard
-                      swarm={swarm}
-                      onClick={() => handleEnterSwarm(swarm.id)}
-                    />
+                    <SwarmCard swarm={swarm} onClick={() => { window.location.href = `/swarm/${swarm.id}`; }} />
                     <div className="text-center">
-                      <Link
-                        href={`/swarm/${swarm.id}/deliberation`}
-                        className="text-xs text-purple-300 hover:underline"
-                      >
+                      <Link href={`/swarm/${swarm.id}/deliberation`} className="text-xs text-purple-300 hover:underline">
                         Activity record
                       </Link>
                     </div>
                   </div>
                 ))
-              ) : null}
+              )}
             </div>
           </TabsContent>
 

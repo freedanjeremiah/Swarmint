@@ -3,11 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useReadContract, useReadContracts } from "wagmi";
+import { useReadContract, useReadContracts, useWriteContract } from "wagmi";
 import { DynamicWidget } from "@dynamic-labs/sdk-react-core";
 import OptimizedBackground from "@/components/background";
 import LogoComponent from "@/components/logo";
 import { ChainBanner } from "@/components/chain-banner";
+import { ExplorerTxLink } from "@/components/explorer-link";
+import { EXPECTED_CHAIN_ID } from "@/lib/expected-chain";
 import type { DeliberationRecord } from "@/types/deliberation";
 import {
   swarmContractAddress,
@@ -20,9 +22,8 @@ interface Message {
   role: "user" | "swarm";
   content: string;
   record?: DeliberationRecord;
+  anchorHash?: string;
 }
-
-const FALLBACK_MEMBER_IDS = [1, 2, 4, 6, 10];
 
 export default function SwarmChatPage() {
   const params = useParams();
@@ -33,15 +34,15 @@ export default function SwarmChatPage() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  // Step 1: read member AgentINFT token IDs from SwarmMetaINFT
-  const { data: memberTokenIds, isPending: membersPending } = useReadContract({
+  // Read member AgentINFT token IDs from SwarmMetaINFT
+  const { data: memberTokenIds, isPending: membersPending, isError: membersError } = useReadContract({
     address: swarmContractAddress(),
     abi: swarm_abi,
     functionName: "getSwarmMembers",
     args: [BigInt(swarmTokenId)],
   });
 
-  // Step 2: multicall tokenAgentId for each member token ID
+  // Multicall tokenAgentId for each member token ID
   const agentNftAddr = agentNftContractAddress();
   const memberCalls = (memberTokenIds ?? []).map((tokenId) => ({
     address: agentNftAddr as `0x${string}`,
@@ -55,62 +56,80 @@ export default function SwarmChatPage() {
     query: { enabled: memberCalls.length > 0 && !!agentNftAddr },
   });
 
-  // Resolve archetype IDs; fall back to hardcoded if chain reads not ready or return zeros
   const resolvedIds =
     agentIdResults
       ?.map((r) => (r.status === "success" ? Number(r.result as bigint) : 0))
       .filter((id) => id > 0) ?? [];
 
-  const memberAgentIds =
-    resolvedIds.length > 0 ? resolvedIds : FALLBACK_MEMBER_IDS;
-
   const isChainLoading = membersPending || (memberCalls.length > 0 && agentIdsPending);
+  const noMembers =
+    !membersPending && ((memberTokenIds?.length ?? 0) === 0 || membersError);
+  const memberAgentIds = resolvedIds;
+
+  // Write hook for updateDeliberationRoot anchor
+  const { writeContractAsync: writeAnchor } = useWriteContract();
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading || isChainLoading) return;
+    if (memberAgentIds.length === 0) return;
+
     const userMsg = input.trim();
     setInput("");
     setMessages((prev) => [...prev, { role: "user", content: userMsg }]);
     setIsLoading(true);
 
     try {
-      const backendUrl =
-        process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
       const res = await fetch(
-        backendUrl + "/swarm/" + swarmId + "/" + Date.now(),
+        `${backendUrl}/swarm/${swarmId}/${Date.now()}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ prompt: userMsg, memberAgentIds, swarmTokenId }),
         }
       );
+
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err);
+      }
+
       const record = (await res.json()) as DeliberationRecord;
+
       const summary = record.agents
         .map(
           (a) =>
-            "**" +
-            a.agentName +
-            "**: " +
-            a.recommendation +
-            (a.veto ? " VETOED" : a.dissent ? " dissent" : "")
+            `**${a.agentName}**: ${a.recommendation}${a.veto ? " VETOED" : a.dissent ? " [dissent]" : ""}`
         )
         .join("\n");
-      sessionStorage.setItem(
-        "deliberation:" + swarmId,
-        JSON.stringify(record)
-      );
+
+      // On approved outcome: anchor deliberation root on-chain (user signs)
+      let anchorHash: string | undefined;
+      if (record.outcome !== "vetoed" && record.deliberationRoot) {
+        try {
+          anchorHash = await writeAnchor({
+            address: swarmContractAddress(),
+            abi: swarm_abi,
+            functionName: "updateDeliberationRoot",
+            args: [BigInt(swarmTokenId), record.deliberationRoot as `0x${string}`],
+          });
+          record.onChainTxHash = anchorHash;
+        } catch (anchorErr) {
+          console.warn("On-chain anchor failed:", anchorErr);
+        }
+      }
+
+      sessionStorage.setItem("deliberation:" + swarmId, JSON.stringify(record));
       setMessages((prev) => [
         ...prev,
-        { role: "swarm", content: summary, record },
+        { role: "swarm", content: summary, record, anchorHash },
       ]);
     } catch (err) {
       setMessages((prev) => [
         ...prev,
         {
           role: "swarm",
-          content:
-            "Error: " +
-            (err instanceof Error ? err.message : String(err)),
+          content: "Error: " + (err instanceof Error ? err.message : String(err)),
         },
       ]);
     } finally {
@@ -142,6 +161,16 @@ export default function SwarmChatPage() {
           </Link>
         </div>
 
+        {noMembers && (
+          <div className="text-sm text-red-400 border border-red-500/30 rounded-lg p-3">
+            No agents found for swarm #{swarmTokenId}. Compose a swarm first at{" "}
+            <Link href="/createswarm" className="underline text-cyan-400">
+              /createswarm
+            </Link>
+            .
+          </div>
+        )}
+
         <div className="space-y-3 min-h-[400px]">
           {messages.map((msg, i) => (
             <div
@@ -158,17 +187,27 @@ export default function SwarmChatPage() {
               </div>
               {msg.content}
               {msg.record && (
-                <div
-                  className={
-                    "mt-2 text-xs px-2 py-1 rounded inline-block " +
-                    (msg.record.outcome === "vetoed"
-                      ? "bg-red-900/40 text-red-300 border border-red-500/30"
-                      : "bg-green-900/40 text-green-300 border border-green-500/30")
-                  }
-                >
-                  {msg.record.outcome === "vetoed" ? "VETOED" : "APPROVED"}
-                  {msg.record.onChainTxHash && (
-                    <span className="ml-2 text-gray-400">(anchored on-chain)</span>
+                <div className="mt-2 space-y-1">
+                  <div
+                    className={
+                      "text-xs px-2 py-1 rounded inline-block " +
+                      (msg.record.outcome === "vetoed"
+                        ? "bg-red-900/40 text-red-300 border border-red-500/30"
+                        : "bg-green-900/40 text-green-300 border border-green-500/30")
+                    }
+                  >
+                    {msg.record.outcome === "vetoed"
+                      ? "VETOED — no on-chain anchor"
+                      : "APPROVED"}
+                  </div>
+                  {msg.anchorHash && (
+                    <div className="text-xs">
+                      <ExplorerTxLink
+                        chainId={EXPECTED_CHAIN_ID}
+                        hash={msg.anchorHash}
+                        label="View anchor on 0G Explorer"
+                      />
+                    </div>
                   )}
                 </div>
               )}
@@ -193,12 +232,19 @@ export default function SwarmChatPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-            placeholder="Ask your swarm..."
-            className="flex-1 bg-purple-500/10 border border-purple-500/30 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-cyan-400/60"
+            placeholder={
+              noMembers
+                ? "No agents in swarm"
+                : isChainLoading
+                ? "Loading swarm..."
+                : "Ask your swarm..."
+            }
+            disabled={noMembers || isChainLoading}
+            className="flex-1 bg-purple-500/10 border border-purple-500/30 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-cyan-400/60 disabled:opacity-50"
           />
           <button
             onClick={sendMessage}
-            disabled={isLoading || isChainLoading}
+            disabled={isLoading || isChainLoading || noMembers || memberAgentIds.length === 0}
             className="border border-cyan-400/60 rounded-lg px-4 py-2 text-sm text-cyan-300 hover:bg-cyan-950/30 disabled:opacity-50"
           >
             Send

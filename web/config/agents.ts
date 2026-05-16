@@ -74,6 +74,7 @@ export const agents: Agent[] = [
   // deFAI Group
   {
     num: 1,
+    archetypeId: 1,
     id: "personal-accountant",
     name: "Personal Accountant",
     type: "Finance",
@@ -82,27 +83,16 @@ export const agents: Agent[] = [
     description:
       "Your trusted financial manager with complete fund access and management capabilities",
     capabilities: [
-      {
-        name: "BalanceCapability",
-        description: "Check all asset balances across wallets",
-      },
-      {
-        name: "TransferCapability",
-        description: "Manage and execute fund transfers",
-      },
-      {
-        name: "WalletDetailsCapability",
-        description: "Comprehensive wallet management",
-      },
-      {
-        name: "NFTBalanceCapability",
-        description: "Track and manage NFT assets",
-      },
+      { name: "BalanceCapability", description: "Check all asset balances across wallets" },
+      { name: "TransferCapability", description: "Manage and execute fund transfers" },
+      { name: "WalletDetailsCapability", description: "Comprehensive wallet management" },
+      { name: "NFTBalanceCapability", description: "Track and manage NFT assets" },
     ],
     avatarUrl: "/avatars/personal-accountant.png",
   },
   {
     num: 2,
+    archetypeId: 2,
     id: "financial-advisor",
     name: "Financial Advisor",
     type: "Finance",
@@ -111,66 +101,37 @@ export const agents: Agent[] = [
     description:
       "Strategic advisor providing deep financial insights and investment recommendations",
     capabilities: [
-      {
-        name: "BalanceCapability",
-        description: "Analysis of balance positions",
-      },
-      {
-        name: "TradeCapability",
-        description: "Strategic trade recommendations",
-      },
-      {
-        name: "PythPriceCapability",
-        description: "Real-time price data analysis",
-      },
-      {
-        name: "PythPriceFeedIDCapability",
-        description: "Advanced price feed monitoring",
-      },
-      {
-        name: "MorphoDepositCapability",
-        description: "Yield opportunity analysis",
-      },
-      {
-        name: "MorphoWithdrawCapability",
-        description: "Yield management optimization",
-      },
+      { name: "BalanceCapability", description: "Analysis of balance positions" },
+      { name: "TradeCapability", description: "Strategic trade recommendations" },
+      { name: "PythPriceCapability", description: "Real-time price data analysis" },
+      { name: "PythPriceFeedIDCapability", description: "Advanced price feed monitoring" },
+      { name: "MorphoDepositCapability", description: "Yield opportunity analysis" },
+      { name: "MorphoWithdrawCapability", description: "Yield management optimization" },
     ],
     avatarUrl: "/avatars/financial-advisor.png",
   },
   {
     num: 3,
+    archetypeId: 3,
     id: "degen",
     name: "Degen",
     type: "Trading",
     group: "defai",
     apiendpoint: `${process.env.NEXT_PUBLIC_BACKEND_URL}/defi-degen`,
-    description:
-      "High-risk, high-reward strategist with deep social media insights",
+    description: "High-risk, high-reward strategist with deep social media insights",
     capabilities: [
-      {
-        name: "BalanceCapability",
-        description: "Portfolio analysis for opportunities",
-      },
+      { name: "BalanceCapability", description: "Portfolio analysis for opportunities" },
       { name: "TradeCapability", description: "Execute high-potential trades" },
       { name: "PythPriceCapability", description: "Price movement analysis" },
-      {
-        name: "PythPriceFeedIDCapability",
-        description: "Market data monitoring",
-      },
-      {
-        name: "MorphoDepositCapability",
-        description: "Yield farming opportunities",
-      },
-      {
-        name: "MorphoWithdrawCapability",
-        description: "Quick position management",
-      },
+      { name: "PythPriceFeedIDCapability", description: "Market data monitoring" },
+      { name: "MorphoDepositCapability", description: "Yield farming opportunities" },
+      { name: "MorphoWithdrawCapability", description: "Quick position management" },
     ],
     avatarUrl: "/avatars/degen.png",
   },
   {
     num: 4,
+    archetypeId: 4,
     id: "risk-manager",
     name: "Risk Manager",
     type: "Finance",
@@ -180,33 +141,28 @@ export const agents: Agent[] = [
     capabilities: [
       { name: "BalanceCapability", description: "Position risk monitoring" },
       { name: "PythPriceCapability", description: "Price risk assessment" },
-      {
-        name: "MorphoDepositCapability",
-        description: "Yield strategy risk analysis",
-      },
-      {
-        name: "MorphoWithdrawCapability",
-        description: "Emergency position management",
-      },
+      { name: "MorphoDepositCapability", description: "Yield strategy risk analysis" },
+      { name: "MorphoWithdrawCapability", description: "Emergency position management" },
     ],
     avatarUrl: "/avatars/risk-manager.png",
   },
   {
     num: 5,
+    archetypeId: 5,
     id: "god-agent",
     name: "Universal Controller",
     type: "Supreme",
     group: "god",
     description:
-      "The ultimate agent with unlimited access and capabilities across all domains. Combines financial expertise, research prowess, and governance mastery.",
+      "The ultimate agent with unlimited access and capabilities across all domains.",
     capabilities: allCapabilities,
     avatarUrl: "/avatars/god.png",
     apiendpoint: `${process.env.NEXT_PUBLIC_BACKEND_URL}/god-god-agent`,
   },
-
   // Research Group
   {
     num: 6,
+    archetypeId: 7,
     id: "data-scientist",
     name: "Data Scientist",
     type: "Research",
@@ -214,20 +170,15 @@ export const agents: Agent[] = [
     description: "Advanced on-chain data analysis and pattern recognition",
     apiendpoint: `${process.env.NEXT_PUBLIC_BACKEND_URL}/research-data-scientist`,
     capabilities: [
-      {
-        name: "BalanceCapability",
-        description: "Deep data analysis of positions",
-      },
+      { name: "BalanceCapability", description: "Deep data analysis of positions" },
       { name: "PythPriceCapability", description: "Price data analysis" },
-      {
-        name: "PythPriceFeedIDCapability",
-        description: "Market data correlation",
-      },
+      { name: "PythPriceFeedIDCapability", description: "Market data correlation" },
     ],
     avatarUrl: "/avatars/data-scientist.png",
   },
   {
     num: 7,
+    archetypeId: 8,
     id: "news-aggregator",
     name: "News Aggregator",
     type: "Research",
@@ -236,15 +187,13 @@ export const agents: Agent[] = [
     apiendpoint: `${process.env.NEXT_PUBLIC_BACKEND_URL}/research-news-aggregator`,
     capabilities: [
       { name: "PythPriceCapability", description: "News impact on prices" },
-      {
-        name: "WalletDetailsCapability",
-        description: "Whale wallet monitoring",
-      },
+      { name: "WalletDetailsCapability", description: "Whale wallet monitoring" },
     ],
     avatarUrl: "/avatars/news-aggregator.png",
   },
   {
     num: 8,
+    archetypeId: 9,
     id: "pattern-detector",
     name: "Pattern Detector",
     type: "Research",
@@ -252,42 +201,16 @@ export const agents: Agent[] = [
     description: "Identifies market patterns and trading opportunities",
     apiendpoint: `${process.env.NEXT_PUBLIC_BACKEND_URL}/research-pattern-detector`,
     capabilities: [
-      {
-        name: "PythPriceCapability",
-        description: "Pattern recognition in price data",
-      },
-      {
-        name: "TradeCapability",
-        description: "Pattern-based trade verification",
-      },
+      { name: "PythPriceCapability", description: "Pattern recognition in price data" },
+      { name: "TradeCapability", description: "Pattern-based trade verification" },
       { name: "BalanceCapability", description: "Volume pattern analysis" },
     ],
     avatarUrl: "/avatars/pattern-detector.png",
   },
-  {
-    num: 9,
-    id: "sentiment-analyzer",
-    name: "Sentiment Analyzer",
-    type: "Research",
-    group: "research",
-    description: "Social media and market sentiment analysis",
-    apiendpoint: `${process.env.NEXT_PUBLIC_BACKEND_URL}/research-sentiment-analyzer`,
-    capabilities: [
-      { name: "WowBuyTokenCapability", description: "Trend momentum analysis" },
-      {
-        name: "WowSellTokenCapability",
-        description: "Sentiment reversal detection",
-      },
-      {
-        name: "PythPriceCapability",
-        description: "Price-sentiment correlation",
-      },
-    ],
-    avatarUrl: "/avatars/sentiment-analyzer.png",
-  },
   // Governance Group
   {
     num: 10,
+    archetypeId: 10,
     id: "proposal-analyzer",
     name: "Proposal Analyzer",
     type: "Governance",
@@ -295,15 +218,13 @@ export const agents: Agent[] = [
     description: "DAO proposal analysis and stakeholder assessment",
     apiendpoint: `${process.env.NEXT_PUBLIC_BACKEND_URL}/gov-proposal-analyzer`,
     capabilities: [
-      {
-        name: "WalletDetailsCapability",
-        description: "Stakeholder voting analysis",
-      },
+      { name: "WalletDetailsCapability", description: "Stakeholder voting analysis" },
     ],
     avatarUrl: "/avatars/proposal-analyzer.png",
   },
   {
     num: 11,
+    archetypeId: 11,
     id: "vote-calculator",
     name: "Vote Calculator",
     type: "Governance",
@@ -317,6 +238,7 @@ export const agents: Agent[] = [
   },
   {
     num: 12,
+    archetypeId: 12,
     id: "strategy-coordinator",
     name: "Strategy Coordinator",
     type: "Governance",
@@ -324,26 +246,11 @@ export const agents: Agent[] = [
     description: "Coordinates governance strategy and execution",
     apiendpoint: `${process.env.NEXT_PUBLIC_BACKEND_URL}/gov-strategy-coordinator`,
     capabilities: [
-      {
-        name: "BalanceCapability",
-        description: "Strategic position assessment",
-      },
+      { name: "BalanceCapability", description: "Strategic position assessment" },
       { name: "TransferCapability", description: "Strategic move execution" },
     ],
     avatarUrl: "/avatars/strategy-coordinator.png",
   },
-  //   {
-  //     id: "impact-assessor",
-  //     name: "Impact Assessor",
-  //     type: "Governance",
-  //     group: "governance",
-  //     description: "Analyzes proposal impacts on protocol and token",
-  //     capabilities: [
-  //       { name: "PythPriceCapability", description: "Price impact assessment" },
-  //       { name: "BalanceCapability", description: "Balance impact analysis" },
-  //     ],
-  //     avatarUrl: "/avatars/default.svg",
-  //   },
 ];
 
 // Example swarms
@@ -364,7 +271,6 @@ export const swarms: Swarm[] = [
       "data-scientist",
       "news-aggregator",
       "pattern-detector",
-      "sentiment-analyzer",
     ],
     lastActive: new Date().toISOString(),
     created: new Date().toISOString(),

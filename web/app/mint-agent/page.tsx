@@ -1,15 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  useAccount,
-  useChainId,
-  useWaitForTransactionReceipt,
-  useWriteContract,
-} from "wagmi";
+import { useAccount, useChainId, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { decodeEventLog } from "viem";
 import { agents, agentGroups } from "@/config/agents";
-import { agent_nft_abi, agentNftContractAddress } from "@/lib/deployments";
+import {
+  agent_nft_abi,
+  agent_registry_abi,
+  agentNftContractAddress,
+  agentRegistryContractAddress,
+} from "@/lib/deployments";
 import OptimizedBackground from "@/components/background";
 import LogoComponent from "@/components/logo";
 import CyberButton from "@/components/cyberButton";
@@ -19,52 +20,106 @@ import { ExplorerTxLink } from "@/components/explorer-link";
 import { EXPECTED_CHAIN_ID } from "@/lib/expected-chain";
 import Image from "next/image";
 
-type MintStep = "idle" | "encrypting" | "uploading" | "minting" | "confirming" | "done" | "error";
+type MintStep =
+  | "idle"
+  | "encrypting"
+  | "uploading"
+  | "minting"
+  | "registering"
+  | "confirming"
+  | "done"
+  | "error";
 
 export default function MintAgentPage() {
   const { isConnected } = useAccount();
   const chainId = useChainId();
   const chainOk = chainId === EXPECTED_CHAIN_ID;
   const nft = agentNftContractAddress();
+  const regAddr = agentRegistryContractAddress();
+
   const [group, setGroup] = useState(agentGroups[0].id);
   const [agentId, setAgentId] = useState<string | null>(null);
   const [step, setStep] = useState<MintStep>("idle");
   const [storageRoot, setStorageRoot] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const agent = useMemo(
-    () => agents.find((a) => a.id === agentId) ?? null,
-    [agentId]
-  );
+  const agent = useMemo(() => agents.find((a) => a.id === agentId) ?? null, [agentId]);
 
-  const { data: hash, writeContract } = useWriteContract();
-  const { isSuccess } = useWaitForTransactionReceipt({ hash });
+  // Mint write hook
+  const { data: mintHash, writeContract: writeMint } = useWriteContract();
+  const { data: mintReceipt, isSuccess: mintIsSuccess } = useWaitForTransactionReceipt({
+    hash: mintHash,
+  });
 
-  if (isSuccess && step === "confirming") setStep("done");
+  // Register write hook
+  const { data: regHash, writeContractAsync: writeRegisterAsync } = useWriteContract();
+  const { isSuccess: regIsSuccess } = useWaitForTransactionReceipt({ hash: regHash });
+
+  // When mint confirms: parse tokenId → auto-register
+  useEffect(() => {
+    if (!mintIsSuccess || !mintReceipt || !agent || !nft || !regAddr) return;
+    let tokenId: bigint | null = null;
+    for (const log of mintReceipt.logs) {
+      try {
+        const decoded = decodeEventLog({
+          abi: agent_nft_abi,
+          data: log.data,
+          topics: log.topics,
+        });
+        if (decoded.eventName === "AgentMinted") {
+          tokenId = (decoded.args as { tokenId: bigint }).tokenId;
+          break;
+        }
+      } catch {
+        // not the right log
+      }
+    }
+    if (!tokenId) {
+      setStep("done");
+      return;
+    }
+    setStep("registering");
+    writeRegisterAsync({
+      address: regAddr,
+      abi: agent_registry_abi,
+      functionName: "register",
+      args: [BigInt(agent.archetypeId), tokenId],
+    }).catch((err) => {
+      console.warn("Auto-register failed (mint still succeeded):", err);
+      setStep("done");
+    });
+  }, [mintIsSuccess, mintReceipt, agent, nft, regAddr]);
+
+  // When register confirms: done
+  useEffect(() => {
+    if (regIsSuccess) setStep("done");
+  }, [regIsSuccess]);
 
   const onMint = async () => {
     if (!nft || !agent || !chainOk) return;
     setErrorMsg(null);
     try {
-      // Step 1+2: Encrypt agent blob + upload to 0G Storage
       setStep("encrypting");
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
-      const res = await fetch(`${backendUrl}/agents/${agent.num}/prepare-mint`, {
+      const res = await fetch(`${backendUrl}/agents/${agent.archetypeId}/prepare-mint`, {
         method: "POST",
       });
       if (!res.ok) throw new Error(await res.text());
       const { root } = (await res.json()) as { root: string };
+
+      if (!/^0x[0-9a-fA-F]{64}$/.test(root)) {
+        throw new Error(`Invalid storage root format: ${root}`);
+      }
       setStorageRoot(root);
 
-      // Step 3: Mint iNFT on-chain with the Merkle root as dataHash
-      setStep("minting");
-      writeContract({
+      setStep("uploading");
+      writeMint({
         address: nft,
         abi: agent_nft_abi,
         functionName: "mint",
-        args: [BigInt(agent.num), root as `0x${string}`],
+        args: [BigInt(agent.archetypeId), root as `0x${string}`],
       });
-      setStep("confirming");
+      setStep("minting");
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : String(err));
       setStep("error");
@@ -76,10 +131,14 @@ export default function MintAgentPage() {
     encrypting: "Encrypting agent data…",
     uploading: "Uploading to 0G Storage…",
     minting: "Confirm in wallet…",
+    registering: "Registering agent…",
     confirming: "Confirming on-chain…",
-    done: "Minted!",
+    done: "Minted & Registered!",
     error: "Retry",
   };
+
+  const stepsDisplay = ["encrypting", "uploading", "minting", "registering"] as MintStep[];
+  const stepIndex = stepsDisplay.indexOf(step);
 
   return (
     <div className="min-h-screen bg-black text-white relative">
@@ -101,35 +160,55 @@ export default function MintAgentPage() {
 
         {!nft && (
           <p className="text-sm text-amber-200 border border-amber-500/40 rounded-lg p-4">
-            Set <code className="text-cyan-300">NEXT_PUBLIC_AGENT_NFT_CONTRACT_ADDRESS</code> in <code>.env.local</code>.
+            Set <code className="text-cyan-300">NEXT_PUBLIC_AGENT_NFT_CONTRACT_ADDRESS</code> in{" "}
+            <code>.env.local</code>.
           </p>
         )}
 
         {/* Step indicator */}
         <div className="flex gap-2 text-xs">
-          {(["encrypting", "uploading", "minting", "confirming"] as MintStep[]).map((s, i) => (
-            <div key={s} className={`flex-1 text-center py-1 rounded border ${
-              step === s
-                ? "border-cyan-400/60 text-cyan-300"
-                : step === "done"
-                ? "border-green-500/40 text-green-400"
-                : "border-purple-500/20 text-gray-500"
-            }`}>
-              {i + 1}. {s === "encrypting" ? "Encrypt" : s === "uploading" ? "0G Storage" : s === "minting" ? "Mint iNFT" : "Confirm"}
+          {stepsDisplay.map((s, i) => (
+            <div
+              key={s}
+              className={`flex-1 text-center py-1 rounded border ${
+                step === s
+                  ? "border-cyan-400/60 text-cyan-300"
+                  : step === "done"
+                  ? "border-green-500/40 text-green-400"
+                  : stepIndex > i
+                  ? "border-purple-400/40 text-purple-300"
+                  : "border-purple-500/20 text-gray-500"
+              }`}
+            >
+              {i + 1}.{" "}
+              {s === "encrypting"
+                ? "Encrypt"
+                : s === "uploading"
+                ? "0G Storage"
+                : s === "minting"
+                ? "Mint iNFT"
+                : "Register"}
             </div>
           ))}
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs text-gray-400" htmlFor="group">Group</label>
+          <label className="text-xs text-gray-400" htmlFor="group">
+            Group
+          </label>
           <select
             id="group"
             value={group}
-            onChange={(e) => { setGroup(e.target.value); setAgentId(null); }}
+            onChange={(e) => {
+              setGroup(e.target.value);
+              setAgentId(null);
+            }}
             className="w-full bg-purple-500/10 border border-purple-500/30 rounded-lg px-3 py-2 text-sm"
           >
             {agentGroups.map((g) => (
-              <option key={g.id} value={g.id}>{g.name}</option>
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
             ))}
           </select>
         </div>
@@ -155,7 +234,7 @@ export default function MintAgentPage() {
                   </div>
                   <div>
                     <div className="text-sm font-medium">{a.name}</div>
-                    <div className="text-xs text-gray-500">#{a.num}</div>
+                    <div className="text-xs text-gray-500">archetype #{a.archetypeId}</div>
                   </div>
                 </button>
               ))}
@@ -164,26 +243,37 @@ export default function MintAgentPage() {
 
         {storageRoot && (
           <div className="text-xs text-gray-400 border border-purple-500/20 rounded p-3 space-y-1">
-            <p>0G Storage root: <span className="text-cyan-300 font-mono break-all">{storageRoot}</span></p>
+            <p>
+              0G Storage root:{" "}
+              <span className="text-cyan-300 font-mono break-all">{storageRoot}</span>
+            </p>
           </div>
         )}
 
         {errorMsg && (
-          <p className="text-sm text-red-300 border border-red-500/40 rounded-lg p-3">{errorMsg}</p>
+          <p className="text-sm text-red-300 border border-red-500/40 rounded-lg p-3">
+            {errorMsg}
+          </p>
         )}
 
-        {step === "done" && hash && (
+        {step === "done" && mintHash && (
           <div className="space-y-2 text-sm text-green-200">
-            <p>Agent iNFT minted. Intelligence anchored on 0G Storage.</p>
-            <ExplorerTxLink chainId={chainId} hash={hash} label="View mint on 0G Explorer" />
+            <p>Agent iNFT minted and registered. Intelligence anchored on 0G Storage.</p>
+            <ExplorerTxLink chainId={chainId} hash={mintHash} label="View mint on 0G Explorer" />
+            {regHash && (
+              <ExplorerTxLink chainId={chainId} hash={regHash} label="View registration on 0G Explorer" />
+            )}
           </div>
         )}
 
         <CyberButton
           cyberSize="lg"
           disabled={
-            !isConnected || !chainOk || !nft || !agent ||
-            ["encrypting", "uploading", "minting", "confirming"].includes(step)
+            !isConnected ||
+            !chainOk ||
+            !nft ||
+            !agent ||
+            ["encrypting", "uploading", "minting", "registering", "confirming"].includes(step)
           }
           onClick={onMint}
         >

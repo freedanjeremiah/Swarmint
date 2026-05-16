@@ -1,27 +1,63 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useReadContract } from "wagmi";
 import OptimizedBackground from "@/components/background";
 import LogoComponent from "@/components/logo";
 import { ExplorerTxLink } from "@/components/explorer-link";
 import { EXPECTED_CHAIN_ID } from "@/lib/expected-chain";
+import { swarmContractAddress, swarm_abi } from "@/lib/deployments";
 import type { DeliberationRecord } from "@/types/deliberation";
 
 export default function DeliberationPage() {
   const params = useParams();
   const swarmId = params.slug as string;
-  const [record, setRecord] = useState<DeliberationRecord | null>(null);
+  const swarmTokenId = Number(swarmId) || 1;
 
+  const [record, setRecord] = useState<DeliberationRecord | null>(null);
+  const [fetching, setFetching] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  // Read deliberationRoot from chain
+  const { data: swarmMeta } = useReadContract({
+    address: swarmContractAddress(),
+    abi: swarm_abi,
+    functionName: "swarms",
+    args: [BigInt(swarmTokenId)],
+  });
+
+  // swarms() returns [threadId, deliberationRoot, createdAt, status]
+  const onChainRoot = swarmMeta
+    ? (swarmMeta as readonly [string, `0x${string}`, bigint, number])[1]
+    : undefined;
+
+  // Load record: sessionStorage first, then agent server
   useEffect(() => {
     const stored = sessionStorage.getItem("deliberation:" + swarmId);
     if (stored) {
-      try { setRecord(JSON.parse(stored) as DeliberationRecord); } catch {}
+      try {
+        setRecord(JSON.parse(stored) as DeliberationRecord);
+        return;
+      } catch {}
     }
-  }, [swarmId]);
+    // sessionStorage miss — try fetching from agent server using on-chain root
+    if (!onChainRoot || onChainRoot === "0x0000000000000000000000000000000000000000000000000000000000000000") return;
+    setFetching(true);
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
+    fetch(`${backendUrl}/deliberation/${onChainRoot}`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`${r.status}`);
+        return r.json();
+      })
+      .then((data) => setRecord(data as DeliberationRecord))
+      .catch((err) => setFetchError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setFetching(false));
+  }, [swarmId, onChainRoot]);
 
-  const truncate = (s: string) => s.length > 40 ? s.slice(0, 20) + "..." + s.slice(-10) : s;
+  const truncate = (s: string) =>
+    s.length > 40 ? s.slice(0, 20) + "..." + s.slice(-10) : s;
 
   return (
     <div className="min-h-screen bg-black text-white relative">
@@ -40,28 +76,60 @@ export default function DeliberationPage() {
           Deliberation Record
         </h1>
 
-        {!record && (
-          <p className="text-sm text-gray-400">No deliberation record found. Run a swarm decision first.</p>
+        {fetching && (
+          <p className="text-sm text-gray-400 animate-pulse">
+            Fetching record from 0G Storage...
+          </p>
         )}
+
+        {fetchError && (
+          <p className="text-sm text-red-400 border border-red-500/30 rounded p-3">
+            Failed to fetch from agent server: {fetchError}
+          </p>
+        )}
+
+        {!record && !fetching && (
+          <p className="text-sm text-gray-400">
+            No deliberation record found. Run a swarm decision first.
+          </p>
+        )}
+
+        {onChainRoot &&
+          onChainRoot !==
+            "0x0000000000000000000000000000000000000000000000000000000000000000" && (
+            <div className="text-xs text-gray-500 border border-purple-500/10 rounded p-2">
+              On-chain deliberation root:{" "}
+              <span className="font-mono text-purple-300 break-all">{onChainRoot}</span>
+            </div>
+          )}
 
         {record && (
           <>
             <div className="border border-purple-500/20 rounded-lg p-4 space-y-2 text-sm">
               <div className="flex gap-2 items-center">
-                <span className={"px-2 py-0.5 rounded text-xs font-bold " + (
-                  record.outcome === "vetoed"
-                    ? "bg-red-900/40 text-red-300 border border-red-500/30"
-                    : "bg-green-900/40 text-green-300 border border-green-500/30"
-                )}>
+                <span
+                  className={
+                    "px-2 py-0.5 rounded text-xs font-bold " +
+                    (record.outcome === "vetoed"
+                      ? "bg-red-900/40 text-red-300 border border-red-500/30"
+                      : "bg-green-900/40 text-green-300 border border-green-500/30")
+                  }
+                >
                   {record.outcome.toUpperCase()}
                 </span>
                 <span className="text-gray-400 text-xs">{record.timestamp}</span>
               </div>
-              <p className="text-gray-300">Prompt: <span className="text-white">{record.prompt}</span></p>
+              <p className="text-gray-300">
+                Prompt: <span className="text-white">{record.prompt}</span>
+              </p>
               {record.deliberationRoot && (
                 <div className="space-y-1">
-                  <p className="text-xs text-gray-500">0G Storage Merkle Root (deliberation record):</p>
-                  <p className="font-mono text-xs text-cyan-300 break-all">{record.deliberationRoot}</p>
+                  <p className="text-xs text-gray-500">
+                    0G Storage Merkle Root (deliberation record):
+                  </p>
+                  <p className="font-mono text-xs text-cyan-300 break-all">
+                    {record.deliberationRoot}
+                  </p>
                 </div>
               )}
               {record.onChainTxHash && (
@@ -78,18 +146,27 @@ export default function DeliberationPage() {
               {record.agents.map((agent) => (
                 <div
                   key={agent.agentId}
-                  className={"border rounded-lg p-4 space-y-2 text-sm " + (
-                    agent.veto
+                  className={
+                    "border rounded-lg p-4 space-y-2 text-sm " +
+                    (agent.veto
                       ? "border-red-500/40 bg-red-950/20"
                       : agent.dissent
                       ? "border-amber-500/30 bg-amber-950/10"
-                      : "border-purple-500/20 bg-purple-950/10"
-                  )}
+                      : "border-purple-500/20 bg-purple-950/10")
+                  }
                 >
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-white">{agent.agentName}</span>
-                    {agent.veto && <span className="text-xs text-red-300 border border-red-500/40 rounded px-1">VETO</span>}
-                    {agent.dissent && !agent.veto && <span className="text-xs text-amber-300 border border-amber-500/40 rounded px-1">DISSENT</span>}
+                    {agent.veto && (
+                      <span className="text-xs text-red-300 border border-red-500/40 rounded px-1">
+                        VETO
+                      </span>
+                    )}
+                    {agent.dissent && !agent.veto && (
+                      <span className="text-xs text-amber-300 border border-amber-500/40 rounded px-1">
+                        DISSENT
+                      </span>
+                    )}
                   </div>
                   <p className="text-gray-300">{agent.recommendation}</p>
                   {agent.vetoReason && (
@@ -97,7 +174,9 @@ export default function DeliberationPage() {
                   )}
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-500">TEE Attestation:</span>
-                    <span className="font-mono text-xs text-gray-400">{truncate(agent.attestation)}</span>
+                    <span className="font-mono text-xs text-gray-400">
+                      {truncate(agent.attestation)}
+                    </span>
                     <button
                       onClick={() => navigator.clipboard.writeText(agent.attestation)}
                       className="text-xs text-cyan-400 hover:underline"

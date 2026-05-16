@@ -13,6 +13,7 @@ export interface AgentGroup {
 
 export interface Agent {
   num: number;
+  archetypeId: number;
   id: string;
   name: string;
   type: string;
@@ -20,7 +21,7 @@ export interface Agent {
   description: string;
   capabilities: Capability[];
   avatarUrl: string;
-  apiendpoint: string;
+  apiendpoint?: string;
 }
 
 export interface Swarm {

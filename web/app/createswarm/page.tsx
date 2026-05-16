@@ -3,9 +3,9 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
-import { useAccount, useChainId, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { useAccount, useChainId, useReadContracts, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { agents, agentGroups } from "@/config/agents";
-import { swarm_abi, metaSwarmContractAddress } from "@/lib/deployments";
+import { swarm_abi, agent_registry_abi, metaSwarmContractAddress, agentRegistryContractAddress } from "@/lib/deployments";
 import LogoComponent from "@/components/logo";
 import CyberButton from "@/components/cyberButton";
 import OptimizedBackground from "@/components/background";
@@ -15,10 +15,13 @@ import { DynamicWidget } from "@dynamic-labs/sdk-react-core";
 import { ChainBanner } from "@/components/chain-banner";
 import { ExplorerTxLink } from "@/components/explorer-link";
 import { EXPECTED_CHAIN_ID } from "@/lib/expected-chain";
-import { Abi } from "viem";
+import type { Abi } from "viem";
 
 const swarmAddress = metaSwarmContractAddress();
+const regAddress = agentRegistryContractAddress();
 const swarmAbi = swarm_abi as Abi;
+
+const ZERO_BYTES32 = "0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`;
 
 export default function CreateSwarmPage() {
   const { isConnected } = useAccount();
@@ -30,44 +33,68 @@ export default function CreateSwarmPage() {
   const [isSidebarOpen, setSidebarOpen] = useState(true);
 
   const { data: hash, error, isPending, writeContract } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } =
-    useWaitForTransactionReceipt({ hash });
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+
+  // Build AgentRegistry.getTokenId multicall for each selected agent
+  const selectedAgentObjects = selectedAgents
+    .map((id) => agents.find((a) => a.id === id))
+    .filter(Boolean) as (typeof agents)[0][];
+
+  const tokenIdCalls = regAddress
+    ? selectedAgentObjects.map((a) => ({
+        address: regAddress as `0x${string}`,
+        abi: agent_registry_abi,
+        functionName: "getTokenId" as const,
+        args: [BigInt(a.archetypeId)] as const,
+      }))
+    : [];
+
+  const { data: tokenIdResults } = useReadContracts({
+    contracts: tokenIdCalls,
+    query: { enabled: tokenIdCalls.length > 0 },
+  });
+
+  // Map agent id → resolved tokenId (0 means not registered)
+  const tokenIdByAgentId: Record<string, bigint> = {};
+  selectedAgentObjects.forEach((a, i) => {
+    const r = tokenIdResults?.[i];
+    tokenIdByAgentId[a.id] = r?.status === "success" ? (r.result as bigint) : BigInt(0);
+  });
+
+  const unregisteredAgents = selectedAgentObjects.filter(
+    (a) => (tokenIdByAgentId[a.id] ?? BigInt(0)) === BigInt(0) && tokenIdResults !== undefined
+  );
 
   const handleAgentSelect = (agentId: string) => {
-    if (selectedAgents.includes(agentId)) {
-      setSelectedAgents((prev) => prev.filter((id) => id !== agentId));
-    } else {
-      setSelectedAgents((prev) => [...prev, agentId]);
-    }
+    setSelectedAgents((prev) =>
+      prev.includes(agentId) ? prev.filter((id) => id !== agentId) : [...prev, agentId]
+    );
   };
 
   const handleCreateSwarm = async () => {
-    if (!chainOk) return;
-    try {
-      const threadId = `swarm_${Date.now()}_${Math.random()
-        .toString(36)
-        .slice(2)}`;
-      const agentIds = selectedAgents
-        .map((id) => {
-          const agent = agents.find((a) => a.id === id);
-          return agent?.num || 0;
-        })
-        .filter((num) => num !== 0);
+    if (!chainOk || !swarmAddress) return;
 
-      if (agentIds.length < 2) {
-        alert("Please select at least 2 agents");
-        return;
-      }
-
-      await writeContract({
-        address: swarmAddress,
-        abi: swarmAbi,
-        functionName: "createSwarm",
-        args: [threadId, agentIds],
-      });
-    } catch (err) {
-      console.error("Error creating swarm:", err);
+    if (selectedAgents.length < 2) {
+      alert("Please select at least 2 agents");
+      return;
     }
+
+    if (unregisteredAgents.length > 0) {
+      alert(
+        `These agents are not yet minted & registered:\n${unregisteredAgents.map((a) => a.name).join(", ")}\n\nGo to /mint-agent first.`
+      );
+      return;
+    }
+
+    const memberTokenIds = selectedAgentObjects.map((a) => tokenIdByAgentId[a.id]);
+    const threadId = `swarm_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+    writeContract({
+      address: swarmAddress,
+      abi: swarmAbi,
+      functionName: "compose",
+      args: [threadId, memberTokenIds, ZERO_BYTES32],
+    });
   };
 
   return (
@@ -117,12 +144,17 @@ export default function CreateSwarmPage() {
                 .filter((agent) => agent.group === activeGroup)
                 .map((agent) => {
                   const isSelected = selectedAgents.includes(agent.id);
+                  const tokenId = tokenIdByAgentId[agent.id];
+                  const notRegistered =
+                    isSelected && tokenId !== undefined && tokenId === BigInt(0);
                   return (
                     <motion.div
                       key={agent.id}
                       whileHover={{ scale: 1.02 }}
                       className={`relative rounded-lg overflow-hidden cursor-pointer border transition-colors duration-300 p-3 ${
-                        isSelected
+                        notRegistered
+                          ? "border-amber-500/50 bg-amber-900/10"
+                          : isSelected
                           ? "border-cyan-500/50 bg-gradient-to-r from-purple-900/40 to-cyan-900/40"
                           : "border-purple-500/20 bg-gradient-to-r from-purple-900/20 to-cyan-900/20"
                       }`}
@@ -130,16 +162,14 @@ export default function CreateSwarmPage() {
                     >
                       <div className="flex items-center gap-3">
                         <div className="relative w-12 h-12">
-                          <Image
-                            src={agent.avatarUrl}
-                            alt={agent.name}
-                            fill
-                            className="object-contain"
-                          />
+                          <Image src={agent.avatarUrl} alt={agent.name} fill className="object-contain" />
                         </div>
                         <div className="flex-1">
                           <h3 className="text-sm font-semibold">{agent.name}</h3>
                           <p className="text-xs text-gray-400">{agent.type}</p>
+                          {notRegistered && (
+                            <p className="text-xs text-amber-400">Not minted yet</p>
+                          )}
                         </div>
                         {isSelected ? (
                           <X className="w-5 h-5 text-cyan-400" />
@@ -155,17 +185,13 @@ export default function CreateSwarmPage() {
           <button
             type="button"
             onClick={() => setSidebarOpen(!isSidebarOpen)}
-            className="absolute top-1/2 -right-4 transform -translate-y-1/2 w-8 h-16 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-r-lg flex items-center justify-center text-white transition-transform duration-300"
+            className="absolute top-1/2 -right-4 transform -translate-y-1/2 w-8 h-16 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-r-lg flex items-center justify-center text-white"
           >
             {isSidebarOpen ? <ChevronLeft /> : <ChevronRight />}
           </button>
         </motion.div>
 
-        <div
-          className={`flex-1 transition-all duration-300 ${
-            isSidebarOpen ? "ml-80" : "ml-0"
-          }`}
-        >
+        <div className={`flex-1 transition-all duration-300 ${isSidebarOpen ? "ml-80" : "ml-0"}`}>
           <div className="container mx-auto px-8 py-4">
             {error && (
               <div className="mb-4 p-4 bg-red-900/50 border border-red-500 rounded-lg text-red-200">
@@ -179,7 +205,7 @@ export default function CreateSwarmPage() {
             )}
             {isConfirmed && hash && (
               <div className="mb-4 p-4 bg-green-900/50 border border-green-500 rounded-lg space-y-2">
-                <p>Swarm created successfully.</p>
+                <p>Swarm composed successfully.</p>
                 <ExplorerTxLink chainId={chainId} hash={hash} />
               </div>
             )}
@@ -191,83 +217,16 @@ export default function CreateSwarmPage() {
 
             {selectedAgents.length > 0 && (
               <div className="mt-8 space-y-6">
-                <div className="flex items-center justify-between px-4 py-3 rounded-lg bg-purple-900/20 border border-purple-500/20 backdrop-blur-sm">
-                  <div className="flex items-center space-x-4">
-                    <div className="text-cyan-400">
-                      <span className="text-2xl font-bold">
-                        {selectedAgents.length}
-                      </span>
-                      <span className="ml-2 text-sm">Agents Selected</span>
-                    </div>
-                    <div className="h-6 w-px bg-purple-500/20" />
-                    <div className="text-purple-400">
-                      <span className="text-sm">Combined Capabilities:</span>
-                      <span className="ml-2 font-bold">
-                        {
-                          new Set(
-                            selectedAgents.flatMap((id) =>
-                              (
-                                agents.find((a) => a.id === id)?.capabilities ||
-                                []
-                              ).map((c) => c.name)
-                            )
-                          ).size
-                        }
-                      </span>
-                    </div>
+                {unregisteredAgents.length > 0 && (
+                  <div className="p-3 bg-amber-900/20 border border-amber-500/40 rounded-lg text-sm text-amber-300">
+                    These agents need to be minted first:{" "}
+                    {unregisteredAgents.map((a) => a.name).join(", ")}. Go to{" "}
+                    <a href="/mint-agent" className="underline">
+                      /mint-agent
+                    </a>
+                    .
                   </div>
-                  <div className="text-sm text-gray-400">
-                    {selectedAgents.length < 2
-                      ? "Select more agents to form a swarm"
-                      : "Ready to create swarm"}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {selectedAgents.map((agentId) => {
-                    const agent = agents.find((a) => a.id === agentId);
-                    if (!agent) return null;
-                    return (
-                      <div
-                        key={agent.id}
-                        className="p-4 rounded-lg bg-purple-900/10 border border-purple-500/20 backdrop-blur-sm hover:bg-purple-900/20 transition-colors duration-300"
-                      >
-                        <div className="flex items-start space-x-3">
-                          <div className="relative w-12 h-12">
-                            <Image
-                              src={agent.avatarUrl}
-                              alt={agent.name}
-                              fill
-                              className="object-contain"
-                            />
-                          </div>
-                          <div className="flex-1">
-                            <h3 className="text-sm font-semibold text-white">
-                              {agent.name}
-                            </h3>
-                            <p className="text-xs text-gray-400 mb-2">
-                              {agent.type}
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                              {agent.capabilities.slice(0, 3).map((cap, i) => (
-                                <span
-                                  key={cap.name}
-                                  className={`text-xs px-2 py-0.5 rounded-full ${
-                                    i % 2 === 0
-                                      ? "bg-purple-500/10 text-purple-300 border border-purple-500/20"
-                                      : "bg-cyan-500/10 text-cyan-300 border border-cyan-500/20"
-                                  }`}
-                                >
-                                  {cap.name.replace("Capability", "")}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                )}
 
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
@@ -281,13 +240,12 @@ export default function CreateSwarmPage() {
                       !isConnected ||
                       !chainOk ||
                       selectedAgents.length < 2 ||
+                      unregisteredAgents.length > 0 ||
                       isPending ||
                       isConfirming
                     }
                   >
-                    {isPending || isConfirming
-                      ? "Creating Swarm…"
-                      : "Create Swarm"}
+                    {isPending || isConfirming ? "Creating Swarm…" : "Create Swarm"}
                   </CyberButton>
                 </motion.div>
               </div>
