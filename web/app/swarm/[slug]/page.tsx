@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useParams } from "next/navigation";
 import { useReadContract, useReadContracts, useWriteContract } from "wagmi";
 import { DynamicWidget } from "@dynamic-labs/sdk-react-core";
@@ -11,6 +12,8 @@ import { ChainBanner } from "@/components/chain-banner";
 import { ExplorerTxLink } from "@/components/explorer-link";
 import { EXPECTED_CHAIN_ID } from "@/lib/expected-chain";
 import type { DeliberationRecord } from "@/types/deliberation";
+import { agents } from "@/config/agents";
+import type { Agent } from "@/types/agents";
 import {
   swarmContractAddress,
   agentNftContractAddress,
@@ -68,6 +71,18 @@ export default function SwarmChatPage() {
 
   // Write hook for updateDeliberationRoot anchor
   const { writeContractAsync: writeAnchor } = useWriteContract();
+
+  // Map archetypeId numbers → Agent objects for the left sidebar
+  const resolvedMemberAgents: Agent[] = memberAgentIds
+    .map((id) => agents.find((a) => a.archetypeId === id))
+    .filter(Boolean) as Agent[];
+
+  // Latest record and anchor hash for the right sidebar
+  const latestSwarmMsg = [...messages]
+    .reverse()
+    .find((m) => m.role === "swarm" && m.record);
+  const latestRecord = latestSwarmMsg?.record;
+  const latestAnchorHash = latestSwarmMsg?.anchorHash;
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading || isChainLoading) return;
@@ -138,117 +153,237 @@ export default function SwarmChatPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white relative flex flex-col">
+    <div className="h-screen bg-black text-white flex flex-col overflow-hidden">
       <OptimizedBackground />
       <ChainBanner />
-      <header className="border-b border-purple-500/20 bg-black/30 backdrop-blur-sm fixed top-0 w-full z-50">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+
+      {/* Header */}
+      <header className="border-b border-purple-500/20 bg-black/30 backdrop-blur-sm z-50 flex-shrink-0">
+        <div className="px-6 h-16 flex items-center justify-between">
           <Link href="/dashboard" className="scale-50 origin-left inline-block">
             <LogoComponent />
           </Link>
-          <DynamicWidget />
+          <div className="flex items-center gap-4">
+            <span className="text-sm font-pixel text-purple-300 hidden sm:inline">
+              Swarm #{swarmId}
+            </span>
+            <Link
+              href={`/swarm/${swarmId}/deliberation`}
+              className="text-xs text-cyan-400 hover:underline"
+            >
+              Deliberation record
+            </Link>
+            <DynamicWidget />
+          </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 pt-24 pb-32 max-w-3xl flex-1 relative z-10 space-y-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-lg font-pixel text-purple-300">Swarm {swarmId}</h1>
-          <Link
-            href={"/swarm/" + swarmId + "/deliberation"}
-            className="text-xs text-cyan-400 hover:underline"
-          >
-            View deliberation record
-          </Link>
+      {/* 3-column body */}
+      <div className="flex flex-1 overflow-hidden relative z-10">
+
+        {/* LEFT SIDEBAR — Swarm Members */}
+        <div className="w-64 border-r border-purple-500/20 bg-black/20 flex-shrink-0 overflow-y-auto p-4">
+          <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">
+            Swarm Members
+          </h2>
+          {isChainLoading && (
+            <p className="text-xs text-cyan-400 animate-pulse">
+              Loading from chain…
+            </p>
+          )}
+          {noMembers ? (
+            <div className="text-xs text-red-400 border border-red-500/30 rounded-lg p-3">
+              No agents found for swarm #{swarmTokenId}.{" "}
+              <Link href="/createswarm" className="underline text-cyan-400">
+                Compose one
+              </Link>
+              .
+            </div>
+          ) : (
+            resolvedMemberAgents.map((agent) => (
+              <div
+                key={agent.archetypeId}
+                className="flex flex-col items-center gap-2 p-3 mb-2 rounded-lg border border-purple-500/20 bg-purple-950/10"
+              >
+                <div className="relative w-16 h-16">
+                  <Image
+                    src={agent.avatarUrl}
+                    alt={agent.name}
+                    fill
+                    className="object-contain rounded-full border-2 border-cyan-500/60"
+                  />
+                </div>
+                <p className="text-xs font-bold text-white text-center">
+                  {agent.name}
+                </p>
+                <span className="text-xs text-cyan-400">
+                  #{agent.archetypeId}
+                </span>
+              </div>
+            ))
+          )}
         </div>
 
-        {noMembers && (
-          <div className="text-sm text-red-400 border border-red-500/30 rounded-lg p-3">
-            No agents found for swarm #{swarmTokenId}. Compose a swarm first at{" "}
-            <Link href="/createswarm" className="underline text-cyan-400">
-              /createswarm
-            </Link>
-            .
-          </div>
-        )}
-
-        <div className="space-y-3 min-h-[400px]">
-          {messages.map((msg, i) => (
-            <div
-              key={i}
-              className={
-                "rounded-lg p-3 text-sm whitespace-pre-wrap " +
-                (msg.role === "user"
-                  ? "bg-purple-950/40 border border-purple-500/20 ml-8"
-                  : "bg-cyan-950/20 border border-cyan-500/20 mr-8")
-              }
-            >
-              <div className="text-xs text-gray-500 mb-1">
-                {msg.role === "user" ? "You" : "Swarm"}
-              </div>
-              {msg.content}
-              {msg.record && (
-                <div className="mt-2 space-y-1">
-                  <div
-                    className={
-                      "text-xs px-2 py-1 rounded inline-block " +
-                      (msg.record.outcome === "vetoed"
-                        ? "bg-red-900/40 text-red-300 border border-red-500/30"
-                        : "bg-green-900/40 text-green-300 border border-green-500/30")
-                    }
-                  >
-                    {msg.record.outcome === "vetoed"
-                      ? "VETOED — no on-chain anchor"
-                      : "APPROVED"}
+        {/* CENTER — Chat */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {messages.map((msg, i) => (
+              <div
+                key={i}
+                className={`flex ${
+                  msg.role === "user" ? "justify-end" : "justify-start"
+                }`}
+              >
+                <div
+                  className={`max-w-[80%] rounded-lg p-3 text-sm ${
+                    msg.role === "user"
+                      ? "bg-purple-950/40 border border-purple-500/20"
+                      : "bg-cyan-950/20 border border-cyan-500/20"
+                  }`}
+                >
+                  <div className="text-xs text-gray-500 mb-1">
+                    {msg.role === "user" ? "You" : "Swarm"}
                   </div>
-                  {msg.anchorHash && (
-                    <div className="text-xs">
-                      <ExplorerTxLink
-                        chainId={EXPECTED_CHAIN_ID}
-                        hash={msg.anchorHash}
-                        label="View anchor on 0G Explorer"
-                      />
+                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                  {msg.record && (
+                    <div className="mt-2 space-y-1">
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded border inline-block font-bold ${
+                          msg.record.outcome === "vetoed"
+                            ? "bg-red-500/20 text-red-400 border-red-500"
+                            : "bg-cyan-500/20 text-cyan-400 border-cyan-500"
+                        }`}
+                      >
+                        {msg.record.outcome === "vetoed"
+                          ? "VETOED"
+                          : "APPROVED"}
+                      </span>
+                      {msg.anchorHash && (
+                        <div className="text-xs">
+                          <ExplorerTxLink
+                            chainId={EXPECTED_CHAIN_ID}
+                            hash={msg.anchorHash}
+                            label="View anchor on 0G Explorer"
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
+              </div>
+            ))}
+
+            {/* Typing indicator */}
+            {isLoading && (
+              <div className="flex justify-start">
+                <div className="bg-cyan-950/20 border border-cyan-500/20 rounded-lg p-3">
+                  <div className="flex gap-1 items-center">
+                    <span className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce [animation-delay:0ms]" />
+                    <span className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce [animation-delay:150ms]" />
+                    <span className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce [animation-delay:300ms]" />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Input bar */}
+          <div className="border-t border-purple-500/20 p-4 bg-black/30 flex-shrink-0">
+            <div className="flex gap-3">
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                placeholder={
+                  noMembers
+                    ? "No agents in swarm"
+                    : isChainLoading
+                    ? "Loading swarm…"
+                    : "Ask your swarm…"
+                }
+                disabled={noMembers || isChainLoading}
+                className="flex-1 bg-purple-500/10 border border-purple-500/30 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-cyan-400/60 disabled:opacity-50"
+              />
+              <button
+                onClick={sendMessage}
+                disabled={
+                  isLoading ||
+                  isChainLoading ||
+                  noMembers ||
+                  memberAgentIds.length === 0
+                }
+                className="border border-cyan-400/60 rounded-lg px-4 py-2 text-sm text-cyan-300 hover:bg-cyan-950/30 disabled:opacity-50 transition-colors"
+              >
+                Send
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT SIDEBAR — Events */}
+        <div className="w-72 border-l border-purple-500/20 bg-black/20 flex-shrink-0 overflow-y-auto p-4">
+          {/* On-chain section */}
+          <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
+            On-Chain
+          </h2>
+          {latestRecord?.deliberationRoot ? (
+            <div className="mb-4 space-y-2">
+              <div className="text-xs font-mono flex items-start gap-1">
+                <span className="text-gray-500 shrink-0">Root:</span>
+                <span className="text-cyan-300 break-all">
+                  {latestRecord.deliberationRoot.slice(0, 10)}…
+                  {latestRecord.deliberationRoot.slice(-6)}
+                </span>
+                <button
+                  onClick={() =>
+                    navigator.clipboard.writeText(
+                      latestRecord!.deliberationRoot!
+                    )
+                  }
+                  className="shrink-0 text-gray-500 hover:text-white ml-1"
+                  title="Copy root"
+                >
+                  ⧉
+                </button>
+              </div>
+              {latestAnchorHash && (
+                <ExplorerTxLink
+                  chainId={EXPECTED_CHAIN_ID}
+                  hash={latestAnchorHash}
+                  label="View anchor tx"
+                />
               )}
             </div>
-          ))}
-          {isChainLoading && (
-            <div className="text-xs text-cyan-400 animate-pulse">
-              Loading swarm members from chain...
-            </div>
+          ) : (
+            <p className="text-xs text-gray-500 mb-4">No anchor yet.</p>
           )}
-          {isLoading && (
-            <div className="text-xs text-purple-300 animate-pulse">
-              Swarm deliberating...
-            </div>
-          )}
-        </div>
-      </main>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-black/80 border-t border-purple-500/20 p-4 z-50">
-        <div className="container mx-auto max-w-3xl flex gap-3">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-            placeholder={
-              noMembers
-                ? "No agents in swarm"
-                : isChainLoading
-                ? "Loading swarm..."
-                : "Ask your swarm..."
-            }
-            disabled={noMembers || isChainLoading}
-            className="flex-1 bg-purple-500/10 border border-purple-500/30 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-cyan-400/60 disabled:opacity-50"
-          />
-          <button
-            onClick={sendMessage}
-            disabled={isLoading || isChainLoading || noMembers || memberAgentIds.length === 0}
-            className="border border-cyan-400/60 rounded-lg px-4 py-2 text-sm text-cyan-300 hover:bg-cyan-950/30 disabled:opacity-50"
-          >
-            Send
-          </button>
+          {/* Agent responses section */}
+          <div className="border-t border-purple-500/20 pt-3">
+            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
+              Agent Responses
+            </h2>
+            {latestRecord?.agents?.length ? (
+              latestRecord.agents.map((a) => (
+                <div
+                  key={a.agentId}
+                  className="mb-3 p-2 border border-gray-700/50 rounded-lg"
+                >
+                  <p className="text-xs font-bold text-cyan-400">
+                    {a.agentName}
+                  </p>
+                  <p className="text-xs text-gray-300 mt-1">
+                    {a.recommendation}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-gray-500">
+                Start a conversation to see agent responses.
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </div>
