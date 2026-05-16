@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { useAccount, useChainId, useReadContracts } from "wagmi";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -22,6 +22,7 @@ import type { Abi } from "viem";
 import { ChainBanner } from "@/components/chain-banner";
 import Link from "next/link";
 import { EXPECTED_CHAIN_ID } from "@/lib/expected-chain";
+import MintAgentModal from "@/components/MintAgentModal";
 
 const SWARM_ADDRESS = swarmContractAddress();
 const SWARM_ABI = swarm_abi as Abi;
@@ -139,6 +140,8 @@ export default function DashboardPage() {
 
   const isLoading = isLoadingSwarmIds || isLoadingSwarmInfo || isLoadingTokenIds;
 
+  const [mintingAgent, setMintingAgent] = useState<(typeof agents)[0] | null>(null);
+
   return (
     <div className="min-h-screen bg-black text-white overflow-hidden">
       <OptimizedBackground />
@@ -219,12 +222,26 @@ export default function DashboardPage() {
           <TabsContent value="explore" className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {agents.map((agent) => (
-                <AgentCard key={agent.id} agent={agent} />
+                <div key={agent.id} className="flex flex-col gap-2">
+                  <AgentCard agent={agent} />
+                  <button
+                    onClick={() => setMintingAgent(agent)}
+                    className="w-full py-2 rounded-lg border border-cyan-500/40 text-cyan-300 text-xs hover:bg-cyan-950/30 transition-colors"
+                  >
+                    Mint iNFT
+                  </button>
+                </div>
               ))}
             </div>
           </TabsContent>
         </Tabs>
       </main>
+      {mintingAgent && (
+        <MintAgentModal
+          agent={mintingAgent}
+          onClose={() => setMintingAgent(null)}
+        />
+      )}
     </div>
   );
 }
