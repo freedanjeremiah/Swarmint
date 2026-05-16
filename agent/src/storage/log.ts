@@ -130,3 +130,24 @@ export async function uploadEncrypted(
 
   return uploadWithRetry(memData, rpcUrl, signer, indexer);
 }
+
+// ---------------------------------------------------------------------------
+// Download
+// ---------------------------------------------------------------------------
+
+/**
+ * Download ciphertext from 0G Storage by Merkle root and decrypt to plaintext.
+ * Returns the original plaintext string that was passed to `uploadEncrypted`.
+ */
+export async function download(root: string): Promise<string> {
+  const indexerUrl =
+    process.env.ZG_INDEXER_URL ?? "https://indexer-storage-testnet.0g.ai";
+  const indexer = new Indexer(indexerUrl);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [data, err] = await (indexer as any).download(root);
+  if (err) throw new Error(`0G Storage download failed: ${String(err)}`);
+
+  const buf = Buffer.isBuffer(data) ? data : Buffer.from(data as Uint8Array);
+  return decrypt(buf);
+}

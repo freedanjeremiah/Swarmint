@@ -5,10 +5,6 @@ import { swarmStreamId, readMemory, writeMemory } from "../storage/kv.js";
 import { getArchetype } from "../agents/index.js";
 import type { AgentRecord, DeliberationRecord } from "../types.js";
 
-const SWARM_META_ABI = [
-  "function updateDeliberationRoot(uint256 swarmTokenId, bytes32 newRoot) external",
-];
-
 export interface PipelineInput {
   swarmId: string;
   swarmTokenId: number;
@@ -34,24 +30,34 @@ function parseAgentResponse(raw: string): AgentLLMResponse {
 }
 
 export async function runDeliberation(input: PipelineInput): Promise<DeliberationRecord> {
-  const { swarmId, swarmTokenId, memberAgentIds, threadId, userPrompt } = input;
+  const { swarmId, swarmTokenId: _swarmTokenId, memberAgentIds, threadId, userPrompt } = input;
 
-  // Step 1: Load per-swarm KV memory and inject as context
+  // Validate all agent IDs before doing any work
+  const unknownIds = memberAgentIds.filter((id) => !getArchetype(id));
+  if (unknownIds.length > 0) {
+    throw new Error(`Unknown agent id(s): ${unknownIds.join(", ")}. Valid IDs: 1-5, 7-12.`);
+  }
+
+  // Load per-swarm KV memory
   const sid = swarmStreamId(swarmId);
-  const memory = await readMemory(sid);
+  let memory: string | null = null;
+  try {
+    memory = await readMemory(sid);
+  } catch {
+    // KV failure is non-fatal
+  }
   const memoryContext = memory ? `\n\nSwarm memory (prior decisions):\n${memory}` : "";
 
   const agentRecords: AgentRecord[] = [];
   let outcome: "approved" | "vetoed" = "approved";
 
-  // Step 2: Separate veto agent from non-veto agents
+  // Separate veto agent from non-veto agents
   const vetoAgentId = memberAgentIds.find((id) => getArchetype(id)?.isVetoAgent);
   const nonVetoIds = memberAgentIds.filter((id) => id !== vetoAgentId);
 
-  // Step 3: Run each non-veto agent via compute/broker chat(), collect AgentRecord
+  // Run each non-veto agent
   for (const agentId of nonVetoIds) {
-    const archetype = getArchetype(agentId);
-    if (!archetype) continue;
+    const archetype = getArchetype(agentId)!;
     const messages = [
       { role: "user" as const, content: `Swarm prompt: ${userPrompt}${memoryContext}` },
     ];
@@ -66,7 +72,7 @@ export async function runDeliberation(input: PipelineInput): Promise<Deliberatio
     });
   }
 
-  // Step 4: Run veto agent LAST with full context of all other recommendations
+  // Run veto agent LAST with full context
   if (vetoAgentId !== undefined) {
     const vetoArchetype = getArchetype(vetoAgentId)!;
     const context = agentRecords
@@ -89,12 +95,10 @@ export async function runDeliberation(input: PipelineInput): Promise<Deliberatio
       veto: parsed.veto ?? false,
       vetoReason: parsed.vetoReason,
     });
-
-    // Step 5: If veto agent returns veto: true — set outcome = "vetoed"
     if (parsed.veto) outcome = "vetoed";
   }
 
-  // Step 6: Build canonical DeliberationRecord
+  // Build canonical DeliberationRecord
   const record: DeliberationRecord = {
     swarmId,
     threadId,
@@ -104,7 +108,7 @@ export async function runDeliberation(input: PipelineInput): Promise<Deliberatio
     outcome,
   };
 
-  // Step 7: Upload record JSON to 0G Storage Log via uploadEncrypted() — get root
+  // Upload record to 0G Storage regardless of outcome (preserves record)
   let root: string;
   try {
     const result = await uploadEncrypted(JSON.stringify(record));
@@ -112,28 +116,23 @@ export async function runDeliberation(input: PipelineInput): Promise<Deliberatio
   } catch (e) {
     throw new Error(`0G Storage upload failed: ${e instanceof Error ? e.message : String(e)}`);
   }
-  record.deliberationRoot = root;
 
-  // Step 8: Call SwarmMetaINFT.updateDeliberationRoot on-chain via ethers
-  const provider = new ethers.JsonRpcProvider(process.env.ZG_RPC_URL!);
-  const signer = new ethers.Wallet(process.env.PRIVATE_KEY!, provider);
-  const contract = new ethers.Contract(
-    process.env.SWARM_META_INFT_ADDRESS!,
-    SWARM_META_ABI,
-    signer,
-  );
+  // Normalize root to 32-byte hex (bytes32)
+  const normalizedRoot = ethers.zeroPadValue(root.startsWith("0x") ? root : `0x${root}`, 32);
+  record.deliberationRoot = normalizedRoot;
+
+  // NOTE: On veto, updateDeliberationRoot is intentionally NOT called on-chain.
+  // On approved, the frontend (swarm chat page) calls updateDeliberationRoot via wagmi.
+  // onChainTxHash is absent from this return value — the frontend sets it after anchoring.
+
+  // Update KV memory (non-fatal if KV is unavailable)
   try {
-    const tx = await contract.updateDeliberationRoot(swarmTokenId, root);
-    record.onChainTxHash = tx.hash;
-  } catch (e) {
-    throw new Error(`On-chain deliberation root update failed: ${e instanceof Error ? e.message : String(e)}`);
+    const summary = `[${record.timestamp}] ${userPrompt} → ${outcome.toUpperCase()}`;
+    const updated = memory ? `${memory}\n${summary}` : summary;
+    await writeMemory(sid, updated);
+  } catch {
+    // KV failure is non-fatal
   }
 
-  // Step 9: Update KV memory with decision summary
-  const summary = `[${record.timestamp}] ${userPrompt} → ${outcome.toUpperCase()}`;
-  const updated = memory ? `${memory}\n${summary}` : summary;
-  await writeMemory(sid, updated);
-
-  // Step 10: Return full DeliberationRecord
   return record;
 }
